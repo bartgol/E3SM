@@ -36,4 +36,4 @@ void EulerStepFunctor
   p_->qdp_time_avg(n0_qdp, np1_qdp);
 }
 
-}
+} // namespace Homme

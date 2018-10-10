@@ -2,11 +2,13 @@
 
 #include <limits>
 
-#include "Elements.hpp"
+#include "ElementGeometry.hpp"
+#include "ReferenceElement.hpp"
 #include "Dimensions.hpp"
 #include "KernelVariables.hpp"
 #include "SphereOperators.hpp"
 #include "Types.hpp"
+#include "utilities/GenericUtils.hpp"
 #include "utilities/TestUtils.hpp"
 #include "utilities/SubviewUtils.hpp"
 
@@ -113,23 +115,21 @@ class compute_sphere_operator_test_ml {
         scalar_input_d("scalar input", num_elems),
         scalar_input_COPY2_d("scalar input 2", num_elems),
         vector_input_d("vector input", num_elems),
-        tensor_d("tensor", num_elems),
-        vec_sph2cart_d("ver_sph2cart", num_elems),
         scalar_output_d("scalar output", num_elems),
         vector_output_d("vector output", num_elems),
+        tensorVisc_d("tensor", num_elems),
 
         // Make certain Kokkos doesn't use the same arrays
         // as used on the device when they are mutable
         scalar_input_host("scalar input host", num_elems),
         scalar_input_COPY2_host("scalar input host copy", num_elems),
         vector_input_host("vector input host", num_elems),
-        tensor_host(Kokkos::create_mirror_view(tensor_d)),
-        vec_sph2cart_host(
-            Kokkos::create_mirror_view(vec_sph2cart_d)),
         scalar_output_host(
             Kokkos::create_mirror_view(scalar_output_d)),
         vector_output_host(
-            Kokkos::create_mirror_view(vector_output_d))
+            Kokkos::create_mirror_view(vector_output_d)),
+        tensorVisc_host(
+            Kokkos::create_mirror_view(tensorVisc_d))
   {
     std::random_device rd;
     rngAlg engine(rd());
@@ -155,74 +155,6 @@ class compute_sphere_operator_test_ml {
                                              1000.0));
     Kokkos::deep_copy(vector_input_d, vector_input_host);
 
-    // D
-    ExecViewManaged<Real * [2][2][NP][NP]> d_d("",num_elems);
-    d_host = Kokkos::create_mirror_view(d_d);
-    genRandArray(d_host, engine,
-                 std::uniform_real_distribution<Real>(
-                     -100.0, 100.0));
-    Kokkos::deep_copy(d_d, d_host);
-
-    // Dinv
-    ExecViewManaged<Real * [2][2][NP][NP]> dinv_d("",num_elems);
-    dinv_host = Kokkos::create_mirror_view(dinv_d);
-    genRandArray(dinv_host,
-                 engine,
-                 std::uniform_real_distribution<Real>(
-                     -100.0, 100.0));
-    Kokkos::deep_copy(dinv_d, dinv_host);
-
-    // metinv
-    ExecViewManaged<Real * [2][2][NP][NP]> metinv_d("",num_elems);
-    metinv_host = Kokkos::create_mirror_view(metinv_d);
-    genRandArray(metinv_host, engine,
-                 std::uniform_real_distribution<Real>(
-                     -100.0, 100.0));
-    Kokkos::deep_copy(metinv_d, metinv_host);
-
-    // metdet
-    ExecViewManaged<Real * [NP][NP]> metdet_d("",num_elems);
-    metdet_host = Kokkos::create_mirror_view(metdet_d);
-    genRandArray(metdet_host, engine,
-                 std::uniform_real_distribution<Real>(
-                     -100.0, 100.0));
-    Kokkos::deep_copy(metdet_d, metdet_host);
-
-    // spheremp
-    ExecViewManaged<Real * [NP][NP]> spheremp_d("",num_elems);
-    spheremp_host = Kokkos::create_mirror_view(spheremp_d);
-    genRandArray(spheremp_host, engine,
-                 std::uniform_real_distribution<Real>(
-                     -100.0, 100.0));
-    Kokkos::deep_copy(spheremp_d, spheremp_host);
-
-    // mp
-    ExecViewManaged<Real * [NP][NP]> mp_d("",num_elems);
-    mp_host = Kokkos::create_mirror_view(mp_d);
-    genRandArray(mp_host,
-                 engine,
-                 std::uniform_real_distribution<Real>(
-                     -100.0, 100.0));
-    Kokkos::deep_copy(mp_d, mp_host);
-
-    // dvv
-    ExecViewManaged<Real[NP][NP]> dvv_d("");
-    dvv_host = Kokkos::create_mirror_view(dvv_d);
-    genRandArray(dvv_host, engine,
-                 std::uniform_real_distribution<Real>(
-                     -100.0, 100.0));
-    Kokkos::deep_copy(dvv_d, dvv_host);
-
-    genRandArray(tensor_host, engine,
-                 std::uniform_real_distribution<Real>(
-                     -1000, 1000.0));
-    Kokkos::deep_copy(tensor_d, tensor_host);
-
-    genRandArray(vec_sph2cart_host, engine,
-                 std::uniform_real_distribution<Real>(
-                     -1000, 1000.0));
-    Kokkos::deep_copy(vec_sph2cart_d, vec_sph2cart_host);
-
     genRandArray(&nu_ratio, 1, engine,
                  std::uniform_real_distribution<Real>(
                      0.0001, 1000.0));
@@ -234,7 +166,15 @@ class compute_sphere_operator_test_ml {
     genRandArray(&add_hyperviscosity, 1, engine,
                  std::uniform_int_distribution<int>(0,1));
 
-    sphere_ops.set_views(dvv_d,d_d,dinv_d,metinv_d,metdet_d,spheremp_d,mp_d);
+    ref_FE.random_init();
+
+    geometry = ExecViewManaged<ElementGeometry *>("",num_elems);
+    auto geometry_host = Kokkos::create_mirror_view(geometry);
+    for (int ie=0; ie<num_elems; ++ie) {
+      geometry_host(ie).random_init(false,true);
+    }
+    Kokkos::deep_copy(geometry,geometry_host);
+    sphere_ops.init(ref_FE);
   }  // end of constructor
 
   int _num_elems;  // league size, serves as ie index
@@ -246,12 +186,12 @@ class compute_sphere_operator_test_ml {
       scalar_input_COPY2_d;
   ExecViewManaged<Scalar * [2][NP][NP][NUM_LEV]>
       vector_input_d;
-  ExecViewManaged<Real * [2][2][NP][NP]> tensor_d;
-  ExecViewManaged<Real * [2][3][NP][NP]> vec_sph2cart_d;
   ExecViewManaged<Scalar * [NP][NP][NUM_LEV]>
       scalar_output_d;
   ExecViewManaged<Scalar * [2][NP][NP][NUM_LEV]>
       vector_output_d;
+  ExecViewManaged<Real * [2][2][NP][NP]>
+      tensorVisc_d;
   // host
   // rely on fact NUM_PHYSICAL_LEV=NUM_LEV*VECTOR_SIZE
   ExecViewManaged<Scalar * [NP][NP][NUM_LEV]>::HostMirror
@@ -265,45 +205,16 @@ class compute_sphere_operator_test_ml {
   const int vector_input_len =
       NUM_PHYSICAL_LEV * 2 * NP * NP;
 
-  ExecViewManaged<Real * [2][2][NP][NP]>::HostMirror d_host;
-  const int d_len = 2 * 2 * NP * NP;  // temp code
-
-  ExecViewManaged<Real * [2][2][NP][NP]>::HostMirror
-      dinv_host;
-  const int dinv_len = 2 * 2 * NP * NP;  // temp code
-
-  ExecViewManaged<Real * [2][2][NP][NP]>::HostMirror
-      metinv_host;
-  const int metinv_len = 2 * 2 * NP * NP;  // temp code
-
-  ExecViewManaged<Real * [NP][NP]>::HostMirror metdet_host;
-  const int metdet_len = NP * NP;
-
-  ExecViewManaged<Real * [NP][NP]>::HostMirror
-      spheremp_host;
-  const int spheremp_len = NP * NP;
-
-  ExecViewManaged<Real * [NP][NP]>::HostMirror mp_host;
-  const int mp_len = NP * NP;
-
-  ExecViewManaged<Real[NP][NP]>::HostMirror dvv_host;
-  const int dvv_len = NP * NP;
-
-  ExecViewManaged<Real * [2][2][NP][NP]>::HostMirror
-      tensor_host;
-  const int tensor_len = 2 * 2 * NP * NP;  // temp code
-
-  ExecViewManaged<Real * [2][3][NP][NP]>::HostMirror
-      vec_sph2cart_host;
-  const int vec_sph2cart_len =
-      2 * 3 * NP * NP;  // temp code
-
   ExecViewManaged<Scalar * [NP][NP][NUM_LEV]>::HostMirror
       scalar_output_host;
   ExecViewManaged<Scalar * [2][NP][NP][NUM_LEV]>::HostMirror
       vector_output_host;
+  ExecViewManaged<Real * [2][2][NP][NP]>::HostMirror
+      tensorVisc_host;
 
-  SphereOperators sphere_ops;
+  ReferenceElement ref_FE;
+  ExecViewManaged<ElementGeometry *> geometry;
+  SphereOperators  sphere_ops;
 
   Real nu_ratio;
   Real alpha;
@@ -347,7 +258,8 @@ class compute_sphere_operator_test_ml {
                   const TeamMember& team) const {
     KernelVariables kv(team);
 
-    sphere_ops.gradient_sphere(team,
+    sphere_ops.gradient_sphere(kv,
+                    geometry(kv.ie),
                     Homme::subview(scalar_input_d, kv.ie),
                     Homme::subview(vector_output_d,kv.ie));
 
@@ -358,7 +270,8 @@ class compute_sphere_operator_test_ml {
                   const TeamMember& team) const {
     KernelVariables kv(team);
 
-    sphere_ops.divergence_sphere_wk(team,
+    sphere_ops.divergence_sphere_wk(kv,
+                         geometry(kv.ie),
                          Homme::subview(vector_input_d, kv.ie),
                          Homme::subview(scalar_output_d,kv.ie));
   }  // end of op() for divergence_sphere_wk_ml
@@ -368,7 +281,8 @@ class compute_sphere_operator_test_ml {
                   const TeamMember& team) const {
     KernelVariables kv(team);
 
-    sphere_ops.divergence_sphere(team,
+    sphere_ops.divergence_sphere(kv,
+                         geometry(kv.ie),
                          Homme::subview(vector_input_d, kv.ie),
                          Homme::subview(scalar_output_d,kv.ie));
   }  // end of op() for divergence_sphere_update
@@ -378,7 +292,9 @@ class compute_sphere_operator_test_ml {
                   const TeamMember& team) const {
     KernelVariables kv(team);
 
-    sphere_ops.divergence_sphere_update(team,alpha,add_hyperviscosity!=0,
+    sphere_ops.divergence_sphere_update(kv,
+                         geometry(kv.ie),
+                         alpha,add_hyperviscosity!=0,
                          Homme::subview(vector_input_d, kv.ie),
                          Homme::subview(scalar_input_d, kv.ie),
                          Homme::subview(scalar_output_d,kv.ie));
@@ -389,7 +305,8 @@ class compute_sphere_operator_test_ml {
                   const TeamMember& team) const {
     KernelVariables kv(team);
 
-    sphere_ops.laplace_simple(team,
+    sphere_ops.laplace_simple(kv,
+                   geometry(kv.ie),
                    Homme::subview(scalar_input_d, kv.ie),
                    Homme::subview(scalar_output_d,kv.ie));
   }  // end of op() for laplace_wk_ml
@@ -399,8 +316,9 @@ class compute_sphere_operator_test_ml {
                   const TeamMember& team) const {
     KernelVariables kv(team);
 
-    sphere_ops.laplace_tensor(team,
-                   Homme::subview(tensor_d,kv.ie),
+    sphere_ops.laplace_tensor(kv,
+                   geometry(kv.ie),
+                   Homme::subview(tensorVisc_d,kv.ie),
                    Homme::subview(scalar_input_d, kv.ie),
                    Homme::subview(scalar_output_d,kv.ie));
   }  // end of op() for laplace_tensor multil
@@ -410,7 +328,8 @@ class compute_sphere_operator_test_ml {
                   const TeamMember& team) const {
     KernelVariables kv(team);
 
-    sphere_ops.curl_sphere_wk_testcov(team,
+    sphere_ops.curl_sphere_wk_testcov(kv,
+                           geometry(kv.ie),
                            Homme::subview(scalar_input_d, kv.ie),
                            Homme::subview(vector_output_d,kv.ie));
   }  // end of op() for curl_sphere_wk_testcov
@@ -420,7 +339,8 @@ class compute_sphere_operator_test_ml {
                   const TeamMember& team) const {
     KernelVariables kv(team);
 
-    sphere_ops.grad_sphere_wk_testcov(team,
+    sphere_ops.grad_sphere_wk_testcov(kv,
+                           geometry(kv.ie),
                            Homme::subview(scalar_input_d, kv.ie),
                            Homme::subview(vector_output_d,kv.ie));
   }  // end of op() for grad_sphere_wk_testcov
@@ -430,9 +350,9 @@ class compute_sphere_operator_test_ml {
                   const TeamMember& team) const {
     KernelVariables kv(team);
 
-    sphere_ops.vlaplace_sphere_wk_cartesian (team,
-                                  Homme::subview(tensor_d,kv.ie),
-                                  Homme::subview(vec_sph2cart_d,kv.ie),
+    sphere_ops.vlaplace_sphere_wk_cartesian (kv,
+                                  geometry(kv.ie),
+                                  Homme::subview(tensorVisc_d,kv.ie),
                                   Homme::subview(vector_input_d,kv.ie),
                                   Homme::subview(vector_output_d,kv.ie));
   }  // end of op() for laplace_tensor multil
@@ -443,7 +363,8 @@ class compute_sphere_operator_test_ml {
     KernelVariables kv(team);
 
     // don't forget to introduce nu_ratio
-    sphere_ops.vlaplace_sphere_wk_contra(team, nu_ratio,
+    sphere_ops.vlaplace_sphere_wk_contra(kv,
+                              geometry(kv.ie), nu_ratio,
                               Homme::subview(vector_input_d, kv.ie),
                               Homme::subview(vector_output_d,kv.ie));
   }  // end of op() for laplace_tensor multil
@@ -453,7 +374,8 @@ class compute_sphere_operator_test_ml {
   void operator()(const TagVorticityVectorML &,
                   const TeamMember& team) const {
     KernelVariables kv(team);
-    sphere_ops.vorticity_sphere (team,
+    sphere_ops.vorticity_sphere (kv,
+                      geometry(kv.ie),
                       Homme::subview(vector_input_d, kv.ie),
                       Homme::subview(scalar_output_d,kv.ie));
   }  // end of op() for vorticity_sphere_vector multilevel
@@ -559,7 +481,11 @@ TEST_CASE("Testing_gradient_sphere", "gradient_sphere") {
   compute_sphere_operator_test_ml testing_grad_ml(elements);
   testing_grad_ml.run_functor_gradient_sphere();
 
+  auto geo_host   = Homme::create_mirror_view_and_copy(testing_grad_ml.geometry);
+  auto deriv_host = Homme::create_mirror_view_and_copy(testing_grad_ml.ref_FE.get_deriv());
+
   for(int ie = 0; ie < elements; ie++) {
+    auto local_dinv = Homme::create_mirror_view_and_copy(geo_host(ie).m_dinv);
     for(int level = 0; level < NUM_LEV; ++level) {
       for(int v = 0; v < VECTOR_SIZE; ++v) {
         // fortran output
@@ -578,8 +504,8 @@ TEST_CASE("Testing_gradient_sphere", "gradient_sphere") {
 
         // running F version of operator
         gradient_sphere_c_callable(
-            &(sf[0][0]), testing_grad_ml.dvv_host.data(),
-            &testing_grad_ml.dinv_host(ie, 0, 0, 0, 0),
+            &(sf[0][0]), deriv_host.data(),
+            local_dinv.data(),
             &(local_fortran_output[0][0][0]));
 
         // compare with the part from C run
@@ -621,7 +547,12 @@ TEST_CASE("Testing divergence_sphere_wk()",
   compute_sphere_operator_test_ml testing_div_ml(elements);
   testing_div_ml.run_functor_divergence_sphere_wk();
 
+  auto geo_host   = Homme::create_mirror_view_and_copy(testing_div_ml.geometry);
+  auto deriv_host = Homme::create_mirror_view_and_copy(testing_div_ml.ref_FE.get_deriv());
+
   for(int ie = 0; ie < elements; ie++) {
+    auto local_spheremp = Homme::create_mirror_view_and_copy(geo_host(ie).m_spheremp);
+    auto local_dinv     = Homme::create_mirror_view_and_copy(geo_host(ie).m_dinv);
     for(int level = 0; level < NUM_LEV; ++level) {
       for(int v = 0; v < VECTOR_SIZE; ++v) {
         // fortran output
@@ -634,17 +565,14 @@ TEST_CASE("Testing divergence_sphere_wk()",
 
         for(int _i = 0; _i < NP; _i++)
           for(int _j = 0; _j < NP; _j++) {
-            sphf[_i][_j] = testing_div_ml.spheremp_host(
-                ie, _i, _j);
-            dvvf[_i][_j] = testing_div_ml.dvv_host(_i, _j);
+            sphf[_i][_j] = local_spheremp(_i, _j);
+            dvvf[_i][_j] = deriv_host(_i, _j);
             for(int _d1 = 0; _d1 < 2; _d1++) {
               vf[_d1][_i][_j] =
                   testing_div_ml.vector_input_host(
                       ie, _d1, _i, _j, level)[v];
               for(int _d2 = 0; _d2 < 2; _d2++)
-                dinvf[_d1][_d2][_i][_j] =
-                    testing_div_ml.dinv_host(ie, _d1,
-                                             _d2, _i, _j);
+                dinvf[_d1][_d2][_i][_j] = local_dinv(_d1,_d2, _i, _j);
             }
           }
         divergence_sphere_wk_c_callable(
@@ -680,7 +608,12 @@ TEST_CASE("Testing divergence_sphere()",
 
   testing_div_ml.run_functor_divergence_sphere();
 
+  auto geo_host   = Homme::create_mirror_view_and_copy(testing_div_ml.geometry);
+  auto deriv_host = Homme::create_mirror_view_and_copy(testing_div_ml.ref_FE.get_deriv());
+
   for(int ie = 0; ie < elements; ie++) {
+    auto local_metdet = Homme::create_mirror_view_and_copy(geo_host(ie).m_metdet);
+    auto local_dinv   = Homme::create_mirror_view_and_copy(geo_host(ie).m_dinv);
     for(int level = 0; level < NUM_LEV; ++level) {
       for(int v = 0; v < VECTOR_SIZE; ++v) {
         // fortran output
@@ -693,17 +626,14 @@ TEST_CASE("Testing divergence_sphere()",
 
         for(int _i = 0; _i < NP; _i++) {
           for(int _j = 0; _j < NP; _j++) {
-            metdetf[_i][_j] = testing_div_ml.metdet_host(
-                ie, _i, _j);
-            dvvf[_i][_j] = testing_div_ml.dvv_host(_i, _j);
+            metdetf[_i][_j] = local_metdet(_i, _j);
+            dvvf[_i][_j] = deriv_host(_i, _j);
             for(int _d1 = 0; _d1 < 2; _d1++) {
               vf[_d1][_i][_j] =
                   testing_div_ml.vector_input_host(
                       ie, _d1, _i, _j, level)[v];
               for(int _d2 = 0; _d2 < 2; _d2++)
-                dinvf[_d1][_d2][_i][_j] =
-                    testing_div_ml.dinv_host(ie, _d1,
-                                             _d2, _i, _j);
+                dinvf[_d1][_d2][_i][_j] = local_dinv(_d1, _d2, _i, _j);
             }
           }
         }
@@ -739,6 +669,9 @@ TEST_CASE("Testing divergence_sphere_update()",
 
   compute_sphere_operator_test_ml testing_div_update_ml(elements);
 
+  auto geo_host   = Homme::create_mirror_view_and_copy(testing_div_update_ml.geometry);
+  auto deriv_host = Homme::create_mirror_view_and_copy(testing_div_update_ml.ref_FE.get_deriv());
+
   auto scalar_input_host = testing_div_update_ml.scalar_input_COPY2_host;
 
   // divergence_sphere_update uses the output as part of input (if add_hyperviscosity!=0),
@@ -751,6 +684,8 @@ TEST_CASE("Testing divergence_sphere_update()",
   Real alpha = testing_div_update_ml.alpha;
   int add_hyperviscosity = testing_div_update_ml.add_hyperviscosity;
   for(int ie = 0; ie < elements; ie++) {
+    auto local_metdet = Homme::create_mirror_view_and_copy(geo_host(ie).m_metdet);
+    auto local_dinv   = Homme::create_mirror_view_and_copy(geo_host(ie).m_dinv);
     for(int level = 0; level < NUM_LEV; ++level) {
       for(int v = 0; v < VECTOR_SIZE; ++v) {
         // fortran output
@@ -763,18 +698,15 @@ TEST_CASE("Testing divergence_sphere_update()",
 
         for(int _i = 0; _i < NP; _i++) {
           for(int _j = 0; _j < NP; _j++) {
-            metdetf[_i][_j] = testing_div_update_ml.metdet_host(
-                ie, _i, _j);
-            dvvf[_i][_j] = testing_div_update_ml.dvv_host(_i, _j);
+            metdetf[_i][_j] = local_metdet(_i, _j);
+            dvvf[_i][_j] = deriv_host(_i, _j);
             for(int _d1 = 0; _d1 < 2; _d1++) {
               vf[_d1][_i][_j] =
                   testing_div_update_ml.vector_input_host(
                       ie, _d1, _i, _j, level)[v] *
                   scalar_input_host(ie,_i,_j,level)[v];
               for(int _d2 = 0; _d2 < 2; _d2++)
-                dinvf[_d1][_d2][_i][_j] =
-                    testing_div_update_ml.dinv_host(ie, _d1,
-                                             _d2, _i, _j);
+                dinvf[_d1][_d2][_i][_j] = local_dinv(_d1, _d2, _i, _j);
             }
           }
         }
@@ -820,7 +752,12 @@ TEST_CASE("Testing simple laplace_wk()", "laplace_wk") {
       elements);
   testing_laplace_ml.run_functor_laplace_wk();
 
+  auto geo_host   = Homme::create_mirror_view_and_copy(testing_laplace_ml.geometry);
+  auto deriv_host = Homme::create_mirror_view_and_copy(testing_laplace_ml.ref_FE.get_deriv());
+
   for(int ie = 0; ie < elements; ie++) {
+    auto local_spheremp = Homme::create_mirror_view_and_copy(geo_host(ie).m_spheremp);
+    auto local_dinv     = Homme::create_mirror_view_and_copy(geo_host(ie).m_dinv);
     for(int level = 0; level < NUM_LEV; ++level) {
       for(int v = 0; v < VECTOR_SIZE; ++v) {
         // fortran output
@@ -836,15 +773,11 @@ TEST_CASE("Testing simple laplace_wk()", "laplace_wk") {
             sf[_i][_j] =
                 testing_laplace_ml.scalar_input_host(
                     ie, _i, _j, level)[v];
-            sphf[_i][_j] = testing_laplace_ml.spheremp_host(
-                ie, _i, _j);
-            dvvf[_i][_j] =
-                testing_laplace_ml.dvv_host(_i, _j);
+            sphf[_i][_j] = local_spheremp(_i, _j);
+            dvvf[_i][_j] = deriv_host(_i, _j);
             for(int _d1 = 0; _d1 < 2; _d1++)
               for(int _d2 = 0; _d2 < 2; _d2++)
-                dinvf[_d1][_d2][_i][_j] =
-                    testing_laplace_ml.dinv_host(
-                        ie, _d1, _d2, _i, _j);
+                dinvf[_d1][_d2][_i][_j] = local_dinv(_d1, _d2, _i, _j);
           }
 
         laplace_simple_c_callable(
@@ -882,7 +815,12 @@ TEST_CASE("Testing laplace_tensor() multilevel",
       elements);
   testing_tensor_laplace.run_functor_tensor_laplace();
 
+  auto geo_host   = Homme::create_mirror_view_and_copy(testing_tensor_laplace.geometry);
+  auto deriv_host = Homme::create_mirror_view_and_copy(testing_tensor_laplace.ref_FE.get_deriv());
+
   for(int ie = 0; ie < elements; ie++) {
+    auto local_spheremp = Homme::create_mirror_view_and_copy(geo_host(ie).m_spheremp);
+    auto local_dinv     = Homme::create_mirror_view_and_copy(geo_host(ie).m_dinv);
     for(int level = 0; level < NUM_LEV; ++level) {
       for(int v = 0; v < VECTOR_SIZE; ++v) {
         Real local_fortran_output[NP][NP];
@@ -898,19 +836,14 @@ TEST_CASE("Testing laplace_tensor() multilevel",
             sf[_i][_j] =
                 testing_tensor_laplace.scalar_input_host(
                     ie, _i, _j, level)[v];
-            sphf[_i][_j] =
-                testing_tensor_laplace.spheremp_host(
-                    ie, _i, _j);
-            dvvf[_i][_j] =
-                testing_tensor_laplace.dvv_host(_i, _j);
+            sphf[_i][_j] = local_spheremp(_i, _j);
+            dvvf[_i][_j] = deriv_host(_i, _j);
             for(int _d1 = 0; _d1 < 2; _d1++)
               for(int _d2 = 0; _d2 < 2; _d2++) {
-                dinvf[_d1][_d2][_i][_j] =
-                    testing_tensor_laplace.dinv_host(
-                        ie, _d1, _d2, _i, _j);
+                dinvf[_d1][_d2][_i][_j] = local_dinv(_d1, _d2, _i, _j);
 
                 tensorf[_d1][_d2][_i][_j] =
-                    testing_tensor_laplace.tensor_host(
+                    testing_tensor_laplace.tensorVisc_host(
                         ie, _d1, _d2, _i, _j);
 
               }  // end of d2 loop
@@ -955,8 +888,14 @@ TEST_CASE("Testing curl_sphere_wk_testcov() multilevel",
   compute_sphere_operator_test_ml testing_curl(elements);
   testing_curl.run_functor_curl_sphere_wk_testcov();
 
+  auto geo_host   = Homme::create_mirror_view_and_copy(testing_curl.geometry);
+  auto deriv_host = Homme::create_mirror_view_and_copy(testing_curl.ref_FE.get_deriv());
+  auto mass_host  = Homme::create_mirror_view_and_copy(testing_curl.ref_FE.get_mass());
+
   HostViewManaged<Real[2][NP][NP]> local_fortran_output("curl_sphere_wk_testcov fortran results");
   for(int ie = 0; ie < elements; ie++) {
+    auto local_spheremp = Homme::create_mirror_view_and_copy(geo_host(ie).m_spheremp);
+    auto local_d        = Homme::create_mirror_view_and_copy(geo_host(ie).m_d);
     for(int level = 0; level < NUM_LEV; ++level) {
       for(int v = 0; v < VECTOR_SIZE; ++v) {
         Real sf[NP][NP];
@@ -968,14 +907,12 @@ TEST_CASE("Testing curl_sphere_wk_testcov() multilevel",
           for(int _j = 0; _j < NP; _j++) {
             sf[_i][_j] = testing_curl.scalar_input_host(
                 ie, _i, _j, level)[v];
-            mpf[_i][_j] =
-                testing_curl.mp_host(ie, _i, _j);
-            dvvf[_i][_j] = testing_curl.dvv_host(_i, _j);
+            mpf[_i][_j] = mass_host(_i, _j);
+            dvvf[_i][_j] = deriv_host(_i, _j);
 
             for(int _d1 = 0; _d1 < 2; _d1++)
               for(int _d2 = 0; _d2 < 2; _d2++) {
-                df[_d1][_d2][_i][_j] = testing_curl.d_host(
-                    ie, _d1, _d2, _i, _j);
+                df[_d1][_d2][_i][_j] = local_d(_d1, _d2, _i, _j);
 
               }  // end of d2 loop
           }
@@ -1021,7 +958,14 @@ TEST_CASE("Testing grad_sphere_wk_testcov() multilevel",
   compute_sphere_operator_test_ml testing_grad(elements);
   testing_grad.run_functor_grad_sphere_wk_testcov();
 
+  auto geo_host   = Homme::create_mirror_view_and_copy(testing_grad.geometry);
+  auto deriv_host = Homme::create_mirror_view_and_copy(testing_grad.ref_FE.get_deriv());
+  auto mass_host  = Homme::create_mirror_view_and_copy(testing_grad.ref_FE.get_mass());
+
   for(int ie = 0; ie < elements; ie++) {
+    auto local_metdet = Homme::create_mirror_view_and_copy(geo_host(ie).m_metdet);
+    auto local_metinv = Homme::create_mirror_view_and_copy(geo_host(ie).m_metinv);
+    auto local_d      = Homme::create_mirror_view_and_copy(geo_host(ie).m_d);
     for(int level = 0; level < NUM_LEV; ++level) {
       for(int v = 0; v < VECTOR_SIZE; ++v) {
         Real local_fortran_output[2][NP][NP];
@@ -1036,20 +980,15 @@ TEST_CASE("Testing grad_sphere_wk_testcov() multilevel",
           for(int _j = 0; _j < NP; _j++) {
             sf[_i][_j] = testing_grad.scalar_input_host(
                 ie, _i, _j, level)[v];
-            mpf[_i][_j] =
-                testing_grad.mp_host(ie, _i, _j);
-            metdetf[_i][_j] =
-                testing_grad.metdet_host(ie, _i, _j);
-            dvvf[_i][_j] = testing_grad.dvv_host(_i, _j);
+            mpf[_i][_j] = mass_host(_i, _j);
+            metdetf[_i][_j] = local_metdet(_i, _j);
+            dvvf[_i][_j] = deriv_host(_i, _j);
 
             for(int _d1 = 0; _d1 < 2; _d1++)
               for(int _d2 = 0; _d2 < 2; _d2++) {
-                df[_d1][_d2][_i][_j] = testing_grad.d_host(
-                    ie, _d1, _d2, _i, _j);
+                df[_d1][_d2][_i][_j] = local_d(_d1, _d2, _i, _j);
 
-                metinvf[_d1][_d2][_i][_j] =
-                    testing_grad.metinv_host(ie, _d1,
-                                             _d2, _i, _j);
+                metinvf[_d1][_d2][_i][_j] = local_metinv(_d1, _d2, _i, _j);
               }  // end of d2 loop
           }
         gradient_sphere_wk_testcov_c_callable(
@@ -1099,7 +1038,13 @@ TEST_CASE(
       elements);
   testing_vlaplace.run_functor_vlaplace_cartesian_reduced();
 
+  auto geo_host   = Homme::create_mirror_view_and_copy(testing_vlaplace.geometry);
+  auto deriv_host = Homme::create_mirror_view_and_copy(testing_vlaplace.ref_FE.get_deriv());
+
   for(int ie = 0; ie < elements; ie++) {
+    auto local_vec_sph2cart = Homme::create_mirror_view_and_copy(geo_host(ie).m_vec_sph2cart);
+    auto local_spheremp     = Homme::create_mirror_view_and_copy(geo_host(ie).m_spheremp);
+    auto local_dinv         = Homme::create_mirror_view_and_copy(geo_host(ie).m_dinv);
     for(int level = 0; level < NUM_LEV; ++level) {
       for(int v = 0; v < VECTOR_SIZE; ++v) {
         Real local_fortran_output[2][NP][NP];
@@ -1119,26 +1064,19 @@ TEST_CASE(
                 testing_vlaplace.vector_input_host(
                     ie, 1, _i, _j, level)[v];
 
-            sphf[_i][_j] = testing_vlaplace.spheremp_host(
-                ie, _i, _j);
-            dvvf[_i][_j] =
-                testing_vlaplace.dvv_host(_i, _j);
+            sphf[_i][_j] = local_spheremp(_i, _j);
+            dvvf[_i][_j] = deriv_host(_i, _j);
             for(int _d1 = 0; _d1 < 2; _d1++)
               for(int _d2 = 0; _d2 < 2; _d2++) {
-                dinvf[_d1][_d2][_i][_j] =
-                    testing_vlaplace.dinv_host(ie, _d1,
-                                               _d2, _i, _j);
+                dinvf[_d1][_d2][_i][_j] = local_dinv(_d1, _d2, _i, _j);
 
                 tensorf[_d1][_d2][_i][_j] =
-                    testing_vlaplace.tensor_host(
-                        ie, _d1, _d2, _i, _j);
+                    testing_vlaplace.tensorVisc_host(ie, _d1, _d2, _i, _j);
 
               }  // end of d2 loop
             for(int _d1 = 0; _d1 < 2; _d1++)
               for(int _d2 = 0; _d2 < 3; _d2++) {
-                vec_sph2cartf[_d1][_d2][_i][_j] =
-                    testing_vlaplace.vec_sph2cart_host(
-                        ie, _d1, _d2, _i, _j);
+                vec_sph2cartf[_d1][_d2][_i][_j] = local_vec_sph2cart(_d1, _d2, _i, _j);
               }  // end of d2 loop
           }      // end of j loop
 
@@ -1191,7 +1129,16 @@ TEST_CASE("Testing vlaplace_sphere_wk_contra() multilevel",
       elements);
   testing_vlaplace.run_functor_vlaplace_contra();
 
+  auto geo_host   = Homme::create_mirror_view_and_copy(testing_vlaplace.geometry);
+  auto deriv_host = Homme::create_mirror_view_and_copy(testing_vlaplace.ref_FE.get_deriv());
+  auto mass_host  = Homme::create_mirror_view_and_copy(testing_vlaplace.ref_FE.get_mass());
+
   for(int ie = 0; ie < elements; ie++) {
+    auto local_spheremp = Homme::create_mirror_view_and_copy(geo_host(ie).m_spheremp);
+    auto local_metdet   = Homme::create_mirror_view_and_copy(geo_host(ie).m_metdet);
+    auto local_metinv   = Homme::create_mirror_view_and_copy(geo_host(ie).m_metinv);
+    auto local_dinv     = Homme::create_mirror_view_and_copy(geo_host(ie).m_dinv);
+    auto local_d        = Homme::create_mirror_view_and_copy(geo_host(ie).m_d);
     for(int level = 0; level < NUM_LEV; ++level) {
       for(int v = 0; v < VECTOR_SIZE; ++v) {
         Real local_fortran_output[2][NP][NP];
@@ -1217,28 +1164,18 @@ TEST_CASE("Testing vlaplace_sphere_wk_contra() multilevel",
                 testing_vlaplace.vector_input_host(
                     ie, 1, _i, _j, level)[v];
 
-            mpf[_i][_j] =
-                testing_vlaplace.mp_host(ie, _i, _j);
-            sphf[_i][_j] = testing_vlaplace.spheremp_host(
-                ie, _i, _j);
-            metdetf[_i][_j] = testing_vlaplace.metdet_host(
-                ie, _i, _j);
+            mpf[_i][_j] = mass_host(_i, _j);
+            sphf[_i][_j] = local_spheremp(_i, _j);
+            metdetf[_i][_j] = local_metdet(_i, _j);
             rmetdetf[_i][_j] = 1.0 / metdetf[_i][_j];
 
-            dvvf[_i][_j] =
-                testing_vlaplace.dvv_host(_i, _j);
+            dvvf[_i][_j] = deriv_host(_i, _j);
             for(int _d1 = 0; _d1 < 2; _d1++)
               for(int _d2 = 0; _d2 < 2; _d2++) {
-                df[_d1][_d2][_i][_j] =
-                    testing_vlaplace.d_host(ie, _d1,
-                                            _d2, _i, _j);
-                dinvf[_d1][_d2][_i][_j] =
-                    testing_vlaplace.dinv_host(ie, _d1,
-                                               _d2, _i, _j);
+                df[_d1][_d2][_i][_j]    = local_d(_d1, _d2, _i, _j);
+                dinvf[_d1][_d2][_i][_j] = local_dinv(_d1, _d2, _i, _j);
 
-                metinvf[_d1][_d2][_i][_j] =
-                    testing_vlaplace.metinv_host(
-                        ie, _d1, _d2, _i, _j);
+                metinvf[_d1][_d2][_i][_j] = local_metinv(_d1, _d2, _i, _j);
               }  // end of d2 loop
           }      // end of j loop
 
@@ -1289,7 +1226,12 @@ TEST_CASE("Testing vorticity_sphere_vector()",
   compute_sphere_operator_test_ml testing_vort(elements);
   testing_vort.run_functor_vorticity_sphere_vector();
 
+  auto geo_host   = Homme::create_mirror_view_and_copy(testing_vort.geometry);
+  auto deriv_host = Homme::create_mirror_view_and_copy(testing_vort.ref_FE.get_deriv());
+
   for(int ie = 0; ie < elements; ie++) {
+    auto local_metdet   = Homme::create_mirror_view_and_copy(geo_host(ie).m_metdet);
+    auto local_d        = Homme::create_mirror_view_and_copy(geo_host(ie).m_d);
     for(int level = 0; level < NUM_LEV; ++level) {
       for(int v = 0; v < VECTOR_SIZE; ++v) {
         Real local_fortran_output[NP][NP];
@@ -1300,17 +1242,14 @@ TEST_CASE("Testing vorticity_sphere_vector()",
 
         for(int _i = 0; _i < NP; _i++)
           for(int _j = 0; _j < NP; _j++) {
-            rmetdetf[_i][_j] = 1./testing_vort.metdet_host(
-                ie, _i, _j);
-            dvvf[_i][_j] = testing_vort.dvv_host(_i, _j);
+            rmetdetf[_i][_j] = 1./local_metdet(_i, _j);
+            dvvf[_i][_j] = deriv_host(_i, _j);
             for(int _d1 = 0; _d1 < 2; _d1++) {
               vf[_d1][_i][_j] =
                   testing_vort.vector_input_host(
                       ie, _d1, _i, _j, level)[v];
               for(int _d2 = 0; _d2 < 2; _d2++)
-                df[_d1][_d2][_i][_j] =
-                    testing_vort.d_host(ie, _d1,
-                                             _d2, _i, _j);
+                df[_d1][_d2][_i][_j] = local_d(_d1, _d2, _i, _j);
             }
           }
         vorticity_sphere_c_callable(

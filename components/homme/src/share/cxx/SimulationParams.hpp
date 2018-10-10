@@ -9,6 +9,9 @@
 
 #include "HommexxEnums.hpp"
 
+#include <map>
+#include <string>
+
 namespace Homme
 {
 
@@ -18,7 +21,11 @@ namespace Homme
  */
 struct SimulationParams
 {
-  SimulationParams() : params_set(false), ftype(ForcingAlg::FORCING_OFF) {}
+  SimulationParams() : params_set(false) {}
+
+  std::map<std::string, int>    m_ints;
+  std::map<std::string, bool>   m_bools;
+  std::map<std::string, double> m_reals;
 
   int       time_step_type; // TODO: convert to enum
   int       rsplit;

@@ -14,9 +14,9 @@
 namespace Homme
 {
 
-HyperviscosityFunctorImpl::HyperviscosityFunctorImpl (const SimulationParams& params, const Elements& elements, const Derivative& deriv)
+HyperviscosityFunctorImpl::HyperviscosityFunctorImpl (const SimulationParams& params, const Elements& elements, const ReferenceElement& ref_FE)
  : m_elements   (elements)
- , m_deriv      (deriv)
+ , m_deriv      (ref_FE.get_deriv())
  , m_data       (params.hypervis_subcycle,params.nu_ratio1,params.nu_ratio2,params.nu_top,params.nu,params.nu_p,params.nu_s,params.hypervis_scaling)
  , m_sphere_ops (Context::singleton().get_sphere_operators())
 {

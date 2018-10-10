@@ -75,9 +75,24 @@ OPTION(BUILD_HOMME_PREQX "Primitive equations FEM" ON)
 OPTION(BUILD_HOMME_THETA "SB81 NH model with theta and Exner pressure" ON)
 OPTION(BUILD_HOMME_PREQX_ACC "Primitive equations FEM with OpenACC" ON)
 OPTION(BUILD_HOMME_PREQX_KOKKOS "Primitive equations FEM with Kokkos" OFF)
+OPTION(BUILD_HOMME_THETA_KOKKOS "Primitive equations FEM with Kokkos" OFF)
 OPTION(BUILD_HOMME_PESE  "Primitive equations with vertical spectral elements" OFF)
 OPTION(BUILD_HOMME_SWIM  "Shallow water equations implicit" OFF)
 OPTION(BUILD_HOMME_PRIM  "Primitive equations implicit" OFF)
+
+IF (NOT (${BUILD_HOMME_PESE} OR ${BUILD_HOMME_PRIM} OR ${BUILD_HOMME_SWIM} OR
+         ${BUILD_HOMME_PREQX} OR ${BUILD_HOMME_SWEQX} OR ${BUILD_HOMME_THETA} OR
+         ${BUILD_HOMME_PREQX_ACC} OR ${BUILD_HOMME_PREQX_KOKKOS} OR ${BUILD_HOMME_THETA_KOKKOS}))
+  MESSAGE (FATAL_ERROR "Error! No targets enabled. You must enable at least one of the homme executables.\n")
+ENDIF()
+
+IF (${BUILD_HOMME_THETA_KOKKOS})
+  IF (NOT ${BUILD_HOMME_THETA})
+    # If we build theta kokkos, we also build theta, so we can compare
+    MESSAGE (STATUS "Setting manually disabled BUILD_HOMME_THETA to ON, since BUILD_HOMME_THETA_KOKKOS is ON.")
+  ENDIF ()
+  SET (BUILD_HOMME_THETA ON)
+ENDIF()
 
 #by default we don't need cxx
 SET(HOMME_USE_CXX FALSE)
@@ -93,7 +108,7 @@ IF (${HOMME_USE_TRILINOS})
 ENDIF()
 #if kokkos is needed, then so is cxx
 SET (HOMME_USE_KOKKOS FALSE)
-IF (${BUILD_HOMME_PREQX_KOKKOS})
+IF (${BUILD_HOMME_PREQX_KOKKOS} OR ${BUILD_HOMME_THETA_KOKKOS})
   SET (HOMME_USE_KOKKOS TRUE)
   SET (HOMME_USE_CXX TRUE)
   IF (NOT ${BUILD_HOMME_PREQX})
@@ -243,8 +258,6 @@ SET (CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 SET (CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/utils/cime/src/CMake" ${CMAKE_MODULE_PATH})
 SET (CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/utils/cime/src/externals/pio2/cmake" ${CMAKE_MODULE_PATH})
 
-
-
 #
 # PIO
 #
@@ -316,6 +329,10 @@ ENDIF()
 
 IF(${BUILD_HOMME_PREQX_KOKKOS})
   ADD_SUBDIRECTORY(src/preqx_kokkos)
+ENDIF()
+
+IF(${BUILD_HOMME_THETA_KOKKOS})
+  ADD_SUBDIRECTORY(src/theta-l-kokkos)
 ENDIF()
 
 IF(${BUILD_HOMME_PESE})

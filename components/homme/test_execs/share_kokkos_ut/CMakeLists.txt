@@ -32,7 +32,9 @@ cxx_unit_test (infrastructure_ut "${INFRASTRUCTURE_UT_F90_SRCS}" "${INFRASTRUCTU
 
 SET (RANDOM_INIT_UT_CXX_SRCS
   ${SRC_SHARE_DIR}/cxx/ErrorDefs.cpp
+  ${SRC_SHARE_DIR}/cxx/Element.cpp
   ${SRC_SHARE_DIR}/cxx/Elements.cpp
+  ${SRC_SHARE_DIR}/cxx/ElementGeometry.cpp
   ${SRC_SHARE_DIR}/cxx/ExecSpaceDefs.cpp
   ${SRC_SHARE_DIR}/cxx/Hommexx_Session.cpp
   ${SRC_SHARE_DIR}/cxx/HybridVCoord.cpp
@@ -141,8 +143,11 @@ SET (SPHERE_OP_UT_F90_SRCS
   ${SHARE_UT_DIR}/sphere_op_interface.F90
 )
 SET (SPHERE_OP_UT_CXX_SRCS
+  ${SRC_SHARE_DIR}/cxx/ElementGeometry.cpp
+  ${SRC_SHARE_DIR}/cxx/ErrorDefs.cpp
   ${SRC_SHARE_DIR}/cxx/ExecSpaceDefs.cpp
   ${SRC_SHARE_DIR}/cxx/Hommexx_Session.cpp
+  ${SRC_SHARE_DIR}/cxx/ReferenceElement.cpp
   ${SRC_SHARE_DIR}/cxx/mpi/Comm.cpp
   ${SHARE_UT_DIR}/sphere_op_sl.cpp
   ${SHARE_UT_DIR}/sphere_op_ml.cpp

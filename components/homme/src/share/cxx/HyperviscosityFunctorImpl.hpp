@@ -8,7 +8,7 @@
 #define HOMMEXX_HYPERVISCOSITY_FUNCTOR_IMPL_HPP
 
 #include "Elements.hpp"
-#include "Derivative.hpp"
+#include "ReferenceElement.hpp"
 #include "SimulationParams.hpp"
 #include "KernelVariables.hpp"
 #include "SphereOperators.hpp"
@@ -60,7 +60,7 @@ public:
   struct TagApplyInvMass {};
   struct TagHyperPreExchange {};
 
-  HyperviscosityFunctorImpl (const SimulationParams& params, const Elements& elements, const Derivative& deriv);
+  HyperviscosityFunctorImpl (const SimulationParams& params, const Elements& elements, const ReferenceElement& ref_FE);
 
   void init_boundary_exchanges();
 
@@ -260,7 +260,6 @@ public:
 private:
 
   Elements            m_elements;
-  Derivative          m_deriv;
   HyperviscosityData  m_data;
   SphereOperators     m_sphere_ops;
 

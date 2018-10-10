@@ -7,7 +7,7 @@
 #ifndef HOMMEXX_CAAR_FUNCTOR_HPP
 #define HOMMEXX_CAAR_FUNCTOR_HPP
 
-#include "Derivative.hpp"
+#include "ReferenceElement.hpp"
 #include "HybridVCoord.hpp"
 #include "SphereOperators.hpp"
 #include "Types.hpp"
@@ -25,7 +25,7 @@ class CaarFunctor {
 public:
   CaarFunctor();
   CaarFunctor(const Elements &elements, const Tracers &tracers,
-              const Derivative &derivative, const HybridVCoord &hvcoord,
+              const ReferenceElement& ref_FE, const HybridVCoord &hvcoord,
               const SphereOperators &sphere_ops, 
               const int rsplit);
   CaarFunctor(const CaarFunctor &) = delete;
@@ -49,7 +49,7 @@ public:
            const Real eta_ave_w, const bool compute_diagnostics);
 
 private:
-  std::unique_ptr<CaarFunctorImpl> m_caar_impl;
+  std::shared_ptr<CaarFunctorImpl> m_caar_impl;
 
   // Setup the policies
   Kokkos::TeamPolicy<ExecSpace, void> m_policy;

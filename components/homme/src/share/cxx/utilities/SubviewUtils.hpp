@@ -18,6 +18,45 @@ namespace Homme {
 // Note: we template on ScalarType to allow both Real and Scalar case, and
 //       also to allow const/non-const versions.
 // Note: we assume to have exactly one runtime dimension.
+
+template <typename ScalarType, int DIM0, int DIM1, int DIM2, int DIM3,
+          typename MemSpace, typename... Properties>
+KOKKOS_INLINE_FUNCTION ViewUnmanaged<ScalarType[DIM1][DIM2][DIM3], MemSpace>
+subview(ViewType<ScalarType [DIM0][DIM1][DIM2][DIM3], MemSpace, Properties...>
+            v_in, int idim0) {
+  assert(v_in.data() != nullptr);
+  assert(idim0>=0 && idim0 < v_in.extent_int(0));
+  return ViewUnmanaged<ScalarType[DIM1][DIM2][DIM3], MemSpace>(
+      &v_in.implementation_map().reference(idim0, 0, 0, 0));
+}
+
+template <typename ScalarType, int DIM0, int DIM1, int DIM2,
+          typename MemSpace, typename... Properties>
+KOKKOS_INLINE_FUNCTION ViewUnmanaged<ScalarType[DIM2], MemSpace>
+subview(ViewType<ScalarType [DIM0][DIM1][DIM2], MemSpace, Properties...>
+            v_in, int idim0, int idim1) {
+  assert(v_in.data() != nullptr);
+  assert(idim0>=0 && idim0 < v_in.extent_int(0));
+  assert(idim1>=0 && idim1 < v_in.extent_int(1));
+  return ViewUnmanaged<ScalarType[DIM2], MemSpace>(
+      &v_in.implementation_map().reference(idim0, idim1, 0));
+}
+
+
+template <typename ScalarType, int DIM0, int DIM1, int DIM2, int DIM3,
+          typename MemSpace, typename... Properties>
+KOKKOS_INLINE_FUNCTION ViewUnmanaged<ScalarType[DIM3], MemSpace>
+subview(ViewType<ScalarType [DIM0][DIM1][DIM2][DIM3], MemSpace, Properties...>
+            v_in, int idim0, int idim1, int idim2) {
+  assert(v_in.data() != nullptr);
+  assert(idim0>=0 && idim0 < v_in.extent_int(0));
+  assert(idim1>=0 && idim1 < v_in.extent_int(1));
+  assert(idim2>=0 && idim2 < v_in.extent_int(2));
+  return ViewUnmanaged<ScalarType[DIM3], MemSpace>(
+      &v_in.implementation_map().reference(idim0, idim1, idim2, 0));
+}
+
+/*
 template <typename ScalarType, int DIM1, typename MemSpace,
           typename... Properties>
 KOKKOS_INLINE_FUNCTION ViewUnmanaged<ScalarType[DIM1], MemSpace>
@@ -323,6 +362,7 @@ subview(ViewType<ScalarType ** [DIM1][DIM2][DIM3][DIM4], MemSpace,
   return ViewUnmanaged<ScalarType[DIM3][DIM4], MemSpace>(
     &v_in.implementation_map().reference(ie, remap_idx, idim1, idim2, 0, 0));
 }
+*/
 
 } // namespace Homme
 

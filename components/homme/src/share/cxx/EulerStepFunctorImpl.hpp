@@ -8,7 +8,7 @@
 #define HOMMEXX_EULER_STEP_FUNCTOR_IMPL_HPP
 
 #include "Context.hpp"
-#include "Derivative.hpp"
+#include "ReferenceElement.hpp"
 #include "Elements.hpp"
 #include "ErrorDefs.hpp"
 #include "EulerStepFunctor.hpp"
@@ -96,7 +96,6 @@ class EulerStepFunctorImpl {
 
   const Elements      m_elements;
   const Tracers       m_tracers;
-  const Derivative    m_deriv;
   const HybridVCoord  m_hvcoord;
   EulerStepData       m_data;
   SphereOperators     m_sphere_ops;
@@ -113,7 +112,6 @@ public:
   EulerStepFunctorImpl ()
    : m_elements   (Context::singleton().get_elements())
    , m_tracers    (Context::singleton().get_tracers())
-   , m_deriv      (Context::singleton().get_derivative())
    , m_hvcoord    (Context::singleton().get_hvcoord())
    , m_sphere_ops (Context::singleton().get_sphere_operators())
   {

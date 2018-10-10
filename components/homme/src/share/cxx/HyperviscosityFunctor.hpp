@@ -8,7 +8,7 @@
 #define HOMMEXX_HYPERVISCOSITY_FUNCTOR_HPP
 
 #include "Elements.hpp"
-#include "Derivative.hpp"
+#include "ReferenceElement.hpp"
 #include "SimulationParams.hpp"
 #include "Types.hpp"
 
@@ -23,7 +23,7 @@ class HyperviscosityFunctor
 {
 public:
 
-  HyperviscosityFunctor (const SimulationParams& params, const Elements& elements, const Derivative& deriv);
+  HyperviscosityFunctor (const SimulationParams& params, const Elements& elements, const ReferenceElement& ref_FE);
 
   ~HyperviscosityFunctor ();
 
@@ -33,7 +33,7 @@ public:
 
 private:
 
-  std::unique_ptr<HyperviscosityFunctorImpl>  m_hvf_impl;
+  std::shared_ptr<HyperviscosityFunctorImpl>  m_hvf_impl;
 };
 
 } // namespace Homme

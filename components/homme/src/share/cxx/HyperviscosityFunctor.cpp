@@ -10,15 +10,15 @@
 namespace Homme
 {
 
-HyperviscosityFunctor::HyperviscosityFunctor (const SimulationParams& params, const Elements& elements, const Derivative& deriv)
+HyperviscosityFunctor::HyperviscosityFunctor (const SimulationParams& params, const Elements& elements, const ReferenceElement& ref_FE)
 {
-  m_hvf_impl.reset (new HyperviscosityFunctorImpl(params,elements,deriv));
+  m_hvf_impl.reset (new HyperviscosityFunctorImpl(params,elements,ref_FE));
 }
 
 HyperviscosityFunctor::~HyperviscosityFunctor ()
 {
   // This empty destructor (where HyperviscosityFunctorImpl type is completely known)
-  // is necessary for pimpl idiom to work with unique_ptr. The issue is the
+  // is necessary for pimpl idiom to work with shared_ptr. The issue is the
   // deleter, which needs to know the size of the stored type, and which
   // would be called from the implicitly declared default destructor, which
   // would be in the header file, where HyperviscosityFunctorImpl type is incomplete.

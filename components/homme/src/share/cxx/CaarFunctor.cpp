@@ -19,29 +19,29 @@
 namespace Homme {
 
 CaarFunctor::CaarFunctor()
- : m_policy (Homme::get_default_team_policy<ExecSpace>(Context::singleton().get_elements().num_elems()))
+ : m_policy (Homme::get_default_team_policy<ExecSpace>(Context::singleton().get<Elements>().num_elems()))
 {
-  Elements&        elements   = Context::singleton().get_elements();
-  Tracers&         tracers    = Context::singleton().get_tracers();
-  Derivative&      derivative = Context::singleton().get_derivative();
-  HybridVCoord&    hvcoord    = Context::singleton().get_hvcoord();
-  SphereOperators& sphere_ops = Context::singleton().get_sphere_operators();
-  const int        rsplit     = Context::singleton().get_simulation_params().rsplit;
+  Elements&         elements   = Context::singleton().get<Elements>();
+  Tracers&          tracers    = Context::singleton().get<Tracers>();
+  ReferenceElement& ref_FE     = Context::singleton().get<ReferenceElement>();
+  HybridVCoord&     hvcoord    = Context::singleton().get<HybridVCoord>();
+  SphereOperators&  sphere_ops = Context::singleton().get<SphereOperators>();
+  const int         rsplit     = Context::singleton().get<SimulationParams>().rsplit;
 
   // Build functor impl
-  m_caar_impl.reset(new CaarFunctorImpl(elements,tracers,derivative,hvcoord,sphere_ops,rsplit));
+  m_caar_impl = std::make_shared<CaarFunctorImpl>(elements,tracers,ref_FE,hvcoord,sphere_ops,rsplit);
   m_caar_impl->m_sphere_ops.allocate_buffers(m_policy);
 }
 
 CaarFunctor::CaarFunctor(const Elements &elements, const Tracers &tracers,
-                         const Derivative &derivative,
+                         const ReferenceElement &ref_FE,
                          const HybridVCoord &hvcoord,
                          const SphereOperators &sphere_ops, 
                          const int rsplit)
     : m_policy(
           Homme::get_default_team_policy<ExecSpace>(elements.num_elems())) {
   // Build functor impl
-  m_caar_impl.reset(new CaarFunctorImpl(elements, tracers, derivative, hvcoord,
+  m_caar_impl.reset(new CaarFunctorImpl(elements, tracers, ref_FE, hvcoord,
                                         sphere_ops, rsplit));
   m_caar_impl->m_sphere_ops.allocate_buffers(m_policy);
 }
@@ -49,7 +49,7 @@ CaarFunctor::CaarFunctor(const Elements &elements, const Tracers &tracers,
 CaarFunctor::~CaarFunctor ()
 {
   // This empty destructor (where CaarFunctorImpl type is completely known)
-  // is necessary for pimpl idiom to work with unique_ptr. The issue is the
+  // is necessary for pimpl idiom to work with shared_ptr. The issue is the
   // deleter, which needs to know the size of the stored type, and which
   // would be called from the implicitly declared default destructor, which
   // would be in the header file, where CaarFunctorImpl type is incomplete.
@@ -111,7 +111,7 @@ void CaarFunctor::run (const int nm1, const int n0, const int np1,
   ExecSpace::fence();
   GPTLstop("caar compute");
   start_timer("caar_bexchV");
-  m_caar_impl->m_bes[np1]->exchange(m_caar_impl->m_elements.m_rspheremp);
+  //m_caar_impl->m_bes[np1]->exchange(m_caar_impl->m_elements.m_rspheremp);
   stop_timer("caar_bexchV");
   profiling_pause();
 }
