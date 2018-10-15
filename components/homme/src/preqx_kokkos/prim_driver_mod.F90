@@ -155,6 +155,8 @@ module prim_driver_mod
         !
         integer (kind=c_int), intent(in) :: nelemd
       end subroutine init_elements_c
+      subroutine init_functors_c () bind(c)
+      end subroutine init_functors_c
       subroutine init_elements_2d_c (ie, D_ptr, Dinv_ptr, elem_fcor_ptr,                  &
                                      elem_mp_ptr, elem_spheremp_ptr, elem_rspheremp_ptr,      &
                                      elem_metdet_ptr, elem_metinv_ptr, phis_ptr,              &
@@ -325,6 +327,9 @@ module prim_driver_mod
 
     ! Initialize time level structure in C++
     call init_time_level_c(tl%nm1, tl%n0, tl%np1, tl%nstep, tl%nstep0)
+
+    ! Initialize the C++ functors in the C++ context
+    call init_functors_c ()
 
   end subroutine prim_init2
 
