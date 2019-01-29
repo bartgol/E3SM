@@ -7,6 +7,8 @@
 #ifndef HOMMEXX_MATH_UTILS_HPP
 #define HOMMEXX_MATH_UTILS_HPP
 
+#include <Types.hpp>
+
 #include <Kokkos_Core.hpp>
 #include <cmath>
 

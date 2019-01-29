@@ -69,6 +69,56 @@ private:
   iterator end_;
 };
 
+// =================== Compute deltas ==================== //
+template<typename T, int N>
+struct ComputeDiff {
+  static_assert (N>1, "Error! Computing vector diffs requires at least 2 entries.\n");
+  static constexpr int num_packs = N / VECTOR_SIZE;
+
+  KOKKOS_INLINE_FUNCTION
+  static void run (const Homme::TeamMember& team,
+                   ExecViewUnmanaged<const T[N]> input,
+                   ExecViewUnmanaged<      T[N-1]> output) {
+    Kokkos::parallel_for(Kokkos::ThreadVectorRange(team,N-1),
+                         [&](const int k) {
+
+      output(k) = input(k+1) - input(k);
+    });
+  }
+
+  template<typename InputProvider, typename ExecSpaceType, typename... Args>
+  KOKKOS_INLINE_FUNCTION
+  static typename std::enable_if<!Homme::OnGpu<ExecSpaceType>::value,void>::type
+  run (const Homme::TeamMember& team,
+       ExecViewUnmanaged<T[N]> input,
+       ExecViewUnmanaged<T[N-1]> output,
+       const InputProvider& inputProvider,
+       const Args... args) {
+    Kokkos::parallel_for(Kokkos::ThreadVectorRange(team,N),
+                         [&](const int k) {
+      inputProvider(input,k,args...);
+    });
+
+    run (team,input,output);
+  }
+
+  template<typename InputProvider, typename ExecSpaceType, typename... Args>
+  KOKKOS_INLINE_FUNCTION
+  static typename std::enable_if<Homme::OnGpu<ExecSpaceType>::value,void>::type
+  run (const Homme::TeamMember& team,
+       ExecViewUnmanaged<T[N]> input,
+       ExecViewUnmanaged<T[N-1]> output,
+       const InputProvider& inputProvider,
+       const Args... args) {
+    Kokkos::parallel_for(Kokkos::ThreadVectorRange(team,N-1),
+                         [&](const int k) {
+      inputProvider(input,k,args...);
+      inputProvider(input,k+1,args...);
+      output(k) = input(k+1) - input(k);
+    });
+  }
+};
+
 } // namespace Homme
 
 #endif // HOMMEXX_LOOPS_UTILS_HPP

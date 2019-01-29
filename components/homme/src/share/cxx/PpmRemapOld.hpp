@@ -4,10 +4,6 @@
  * See the file 'COPYRIGHT' in the HOMMEXX/src/share/cxx directory
  *******************************************************************************/
 
-#if 1
-#include "PpmRemapNew.hpp"
-#else
-
 #ifndef HOMMEXX_PPM_REMAP_HPP
 #define HOMMEXX_PPM_REMAP_HPP
 
@@ -44,7 +40,6 @@ static constexpr int gs = 2;
 // Padding to improve memory access alignment
 static constexpr int INITIAL_PADDING =
     lcm(gs, int(VECTOR_SIZE), Real_Alignment);
-static constexpr int VECTOR_PADDING = INITIAL_PADDING / VECTOR_SIZE;
 
 // ghost cells, length 2, on both boundaries
 static constexpr int DPO_PHYSICAL_LEV = NUM_PHYSICAL_LEV + INITIAL_PADDING + gs;
@@ -100,7 +95,7 @@ struct PpmMirrored : public PpmBoundaryConditions {
       cell_means(NUM_PHYSICAL_LEV + _ppm_consts::INITIAL_PADDING - gs + k_0 +
                  1 + 1) =
           cell_means(NUM_PHYSICAL_LEV + _ppm_consts::INITIAL_PADDING - gs + 1 -
-                     k_0 - 1 + 1);
+                     k_0);
     }); // end ghost cell loop
   }
 
@@ -697,5 +692,3 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
 } // namespace Homme
 
 #endif // HOMMEXX_PPM_REMAP_HPP
-
-#endif

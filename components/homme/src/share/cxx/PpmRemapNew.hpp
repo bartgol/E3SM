@@ -4,14 +4,12 @@
  * See the file 'COPYRIGHT' in the HOMMEXX/src/share/cxx directory
  *******************************************************************************/
 
-#if 1
-#include "PpmRemapNew.hpp"
-#else
-
 #ifndef HOMMEXX_PPM_REMAP_HPP
 #define HOMMEXX_PPM_REMAP_HPP
 
 #include "ErrorDefs.hpp"
+
+#include "Kokkos_Concepts.hpp"
 
 #include "RemapFunctor.hpp"
 
@@ -21,6 +19,7 @@
 #include "ExecSpaceDefs.hpp"
 #include "utilities/LoopsUtils.hpp"
 #include "utilities/MathUtils.hpp"
+#include "utilities/RangeView.hpp"
 #include "utilities/SubviewUtils.hpp"
 #include "utilities/SyncUtils.hpp"
 
@@ -30,77 +29,139 @@ namespace Homme {
 namespace Remap {
 namespace Ppm {
 
-namespace _ppm_consts {
-// TODO: Hide these values from users
-using Kokkos::Impl::MEMORY_ALIGNMENT;
-// If sizeof(Real) doesn't divide the memory alignment value for the
-// architecture, we're in trouble regardless
-static constexpr int Real_Alignment =
-    max(int(Kokkos::Impl::MEMORY_ALIGNMENT / sizeof(Real)), 1);
-static constexpr int Vector_Alignment = max(Real_Alignment / VECTOR_SIZE, 1);
+constexpr int NUM_GHOSTS = 2;
 
-static constexpr int gs = 2;
+template<int PhysicalLength, int NumFrontGhosts, int NumBackGhosts>
+struct GhostedColumnProps {
+private:
+  // This is private, cause the users need not to know these details
+  static constexpr int MEMORY_ALIGNMENT = Kokkos::Impl::MEMORY_ALIGNMENT;
+  static constexpr int REAL_SIZE        = sizeof(Real);
 
-// Padding to improve memory access alignment
-static constexpr int INITIAL_PADDING =
-    lcm(gs, int(VECTOR_SIZE), Real_Alignment);
-static constexpr int VECTOR_PADDING = INITIAL_PADDING / VECTOR_SIZE;
+  static_assert (MEMORY_ALIGNMENT % REAL_SIZE  == 0, "Error! Real does not divide the Kokkos memory alignment. Big trouble...\n");
 
-// ghost cells, length 2, on both boundaries
-static constexpr int DPO_PHYSICAL_LEV = NUM_PHYSICAL_LEV + INITIAL_PADDING + gs;
-static constexpr int DPO_LEV = DPO_PHYSICAL_LEV / VECTOR_SIZE;
+  // Either VECTOR_SIZE divides MEMORY_ALIGNMENT or viceversa. E.g.:
+  //  - HSW: vector_size is 4, Kokkos sets memory_alignment to 8 doubles
+  //  - XYZ: vector_size is 16, Kokkos sets memory_alignment to 8 doubles
 
-// cumulative integral of source, 0 start, with extra level as absolute maximum
-static constexpr int PIO_PHYSICAL_LEV = NUM_PHYSICAL_LEV + 2;
-static constexpr int PIO_LEV = PIO_PHYSICAL_LEV / VECTOR_SIZE;
+  // If sizeof(Real) doesn't divide the memory alignment value for the
+  // architecture, we're in trouble regardless
+  static constexpr int REAL_ALIGNMENT   = MEMORY_ALIGNMENT / REAL_SIZE;
 
-// cumulative integral of target, 0 start
-static constexpr int PIN_PHYSICAL_LEV = NUM_PHYSICAL_LEV + 1;
-static constexpr int PIN_LEV = PIN_PHYSICAL_LEV / VECTOR_SIZE;
+  // Number of ghost levels (possibly) used in the remap procedures
+  static constexpr int NumFrontGhostsPacks = (NumFrontGhosts + VECTOR_SIZE - 1) / VECTOR_SIZE;
+public:
 
-static constexpr int PPMDX_PHYSICAL_LEV = NUM_PHYSICAL_LEV + 2;
-static constexpr int PPMDX_LEV = PPMDX_PHYSICAL_LEV / VECTOR_SIZE;
+  // Padding to improve memory access alignment. The padding allows the entry 0 (the first
+  // after the ghosts) to be correctly aligned.
+  // Note: we do NOT count ghosts in the padding
+  static constexpr int InitialPadding = lcm(NumFrontGhostsPacks*VECTOR_SIZE,REAL_ALIGNMENT) - NumFrontGhosts;
 
-// ghost cells, length 2, on both boundaries
-static constexpr int AO_PHYSICAL_LEV = NUM_PHYSICAL_LEV + INITIAL_PADDING + gs;
-static constexpr int AO_LEV = AO_PHYSICAL_LEV / VECTOR_SIZE;
+  // Length of a column with ghosts on both sides. Notice that the number of elements added
+  // at the beginning could be more than NumFrontGhosts, in case there is padding.
+  static constexpr int length = InitialPadding + NumFrontGhosts + PhysicalLength + NumBackGhosts;
 
-static constexpr int MASS_O_PHYSICAL_LEV = NUM_PHYSICAL_LEV + 2;
-static constexpr int MASS_O_LEV = MASS_O_PHYSICAL_LEV / VECTOR_SIZE;
+  static constexpr int first_entry_idx = -InitialPadding - NumFrontGhosts;
+};
 
-static constexpr int DMA_PHYSICAL_LEV = NUM_PHYSICAL_LEV + 2;
-static constexpr int DMA_LEV = DMA_PHYSICAL_LEV / VECTOR_SIZE;
+// Short name for views of data with top and/or bottom ghosts.
+// NOTE: ValueType is there only to allow const/nonconst. The underlying type should *always* be Real.
+template<typename ValueType, int PhysicalLength, int NumFrontGhosts, int NumBackGhosts>
+using GhostedColumn = Ranged<ExecViewUnmanaged<ValueType[GhostedColumnProps<PhysicalLength,NumFrontGhosts,NumBackGhosts>::length]>,
+                             GhostedColumnProps<PhysicalLength,NumFrontGhosts,NumBackGhosts>::first_entry_idx>;
 
-static constexpr int AI_PHYSICAL_LEV = NUM_PHYSICAL_LEV + 1;
-static constexpr int AI_LEV = AI_PHYSICAL_LEV / VECTOR_SIZE;
+template<typename ValueType, int NumColumns, int PhysicalLength, int NumFrontGhosts, int NumBackGhosts>
+using GhostedColumns = Ranged<ExecViewUnmanaged<ValueType[NumColumns][GhostedColumnProps<PhysicalLength,NumFrontGhosts,NumBackGhosts>::length]>,
+                              0,GhostedColumnProps<PhysicalLength,NumFrontGhosts,NumBackGhosts>::first_entry_idx>;
 
-} // namespace _ppm_consts
+struct PpmSizes {
+public:
 
-struct PpmBoundaryConditions {};
+  // Number of ghost levels (possibly) used in the remap procedures
+  static constexpr int NUM_GHOSTS = 2;
+
+  // Length of a column with ghosts on both sides. Notice that the ghosts at the beginning could be more
+  // than NUM_GHOSTS, in case there is padding.
+  static constexpr int GHOSTED_COLUMN_LENGTH = GhostedColumnProps<NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS>::length;
+
+  static constexpr int GHOSTED_COLUMN_FIRST_IDX = GhostedColumnProps<NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS>::first_entry_idx;
+
+  // // Location of the last front ghost and the first back ghost
+  // static constexpr int LAST_FRONT_GHOST = INITIAL_PADDING - 1;
+  // static constexpr int FIRST_BACK_GHOST = NUM_PHYSICAL_LEV + INITIAL_PADDING;
+
+  // // Location of the first and last entries of the column (after the last front ghost and before the first back ghost)
+  // static constexpr int FIRST_COLUMN_ENTRY = LAST_FRONT_GHOST + 1;
+  // static constexpr int LAST_COLUMN_ENTRY  = FIRST_BACK_GHOST - 1;
+
+  // Layers old thickness (cell centered): needs ghost cells, on both boundaries
+  static constexpr int DP_OLD_COLUMN_LENGTH = GHOSTED_COLUMN_LENGTH;
+
+  // Layers new thickness (cell centered)
+  static constexpr int DP_NEW_COLUMN_LENGTH = NUM_PHYSICAL_LEV;
+
+  // Length of mass columns
+  static constexpr int MASS_COLUMN_LENGTH = NUM_PHYSICAL_LEV + 2;
+
+  // Length of grid spacing array
+  static constexpr int PPMDX_COLUMN_LENGTH = NUM_PHYSICAL_LEV + 2;
+
+  // Length of grid spacing array
+  static constexpr int DMA_COLUMN_LENGTH = NUM_PHYSICAL_LEV + 2;
+
+  // Cumulative sum of old grid thickness (interface centered): needs a dummy at the end as an absolute maximum
+  static constexpr int P_OLD_COLUMN_LENGTH = NUM_INTERFACE_LEV + 1;
+
+  // Cumulative sum of new grid thickness (interface centered)
+  static constexpr int P_NEW_COLUMN_LENGTH = NUM_INTERFACE_LEV;
+
+  // Grid spacing: needs one ghost on each side
+  static constexpr int DX_COLUMN_LENGTH = NUM_PHYSICAL_LEV + 2;
+
+  // Old cell values: two ghosts on each side
+  static constexpr int AO_COLUMN_LENGTH = GHOSTED_COLUMN_LENGTH;
+
+  // Interface values: needs one ghost on the front
+  static constexpr int AI_COLUMN_LENGTH = NUM_PHYSICAL_LEV + 1;
+};
+
+// This struct should be used in static checks, as
+//   is_ppm_bc<BLAH>::value;
+// This is a copied-and-pasted version of what Kokkos does for all the is_*<T> checks.
+template<typename T>
+struct is_ppm_bc {
+private: 
+  template< typename , typename = std::true_type >
+  struct have : std::false_type {};
+
+  template< typename U >
+  struct have<U,typename std::is_same<typename std::remove_cv<U>::type, 
+                                      typename std::remove_cv<typename U::ppm_bc_type>::type 
+             >::type> : std::true_type {};
+public:
+  enum { value = is_ppm_bc::template have<T>::value };
+};
 
 // Corresponds to remap alg = 1
-struct PpmMirrored : public PpmBoundaryConditions {
+struct PpmMirrored {
+  // Tag this struct as a ppm boundary condition
+  typedef PpmMirrored     ppm_bc_type;
+
   static constexpr int fortran_remap_alg = 1;
 
   KOKKOS_INLINE_FUNCTION
   static void apply_ppm_boundary(
-      ExecViewUnmanaged<const Real[_ppm_consts::AO_PHYSICAL_LEV]> cell_means,
-      ExecViewUnmanaged<Real[3][NUM_PHYSICAL_LEV]> parabola_coeffs) {}
+      GhostedColumn<Real,NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS> /* cell_means */,
+      ExecViewUnmanaged<Real[3][NUM_PHYSICAL_LEV]> /* parabola_coeffs */) {}
 
   KOKKOS_INLINE_FUNCTION
   static void fill_cell_means_gs(
       KernelVariables &kv,
-      ExecViewUnmanaged<Real[_ppm_consts::AO_PHYSICAL_LEV]> cell_means) {
-    const int gs = _ppm_consts::gs;
-    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, gs),
+      GhostedColumn<Real,NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS> cell_means) {
+    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, NUM_GHOSTS),
                          [&](const int &k_0) {
-      cell_means(_ppm_consts::INITIAL_PADDING - 1 - k_0 - 1 + 1) =
-          cell_means(k_0 + _ppm_consts::INITIAL_PADDING);
-
-      cell_means(NUM_PHYSICAL_LEV + _ppm_consts::INITIAL_PADDING - gs + k_0 +
-                 1 + 1) =
-          cell_means(NUM_PHYSICAL_LEV + _ppm_consts::INITIAL_PADDING - gs + 1 -
-                     k_0 - 1 + 1);
+      cell_means(-1 - k_0) = cell_means(k_0);
+      cell_means(NUM_PHYSICAL_LEV + k_0) = cell_means(NUM_PHYSICAL_LEV - 1 - k_0);
     }); // end ghost cell loop
   }
 
@@ -108,22 +169,21 @@ struct PpmMirrored : public PpmBoundaryConditions {
 };
 
 // Corresponds to remap alg = 2
-struct PpmFixedParabola : public PpmBoundaryConditions {
+struct PpmFixedParabola {
+  // Tag this struct as a ppm boundary condition
+  typedef PpmFixedParabola     ppm_bc_type;
+
   static constexpr int fortran_remap_alg = 2;
 
   KOKKOS_INLINE_FUNCTION
   static void apply_ppm_boundary(
-      ExecViewUnmanaged<const Real[_ppm_consts::AO_PHYSICAL_LEV]> cell_means,
+      GhostedColumn<const Real,NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS> cell_means,
       ExecViewUnmanaged<Real[3][NUM_PHYSICAL_LEV]> parabola_coeffs) {
-    const auto INITIAL_PADDING = _ppm_consts::INITIAL_PADDING;
-    const auto gs = _ppm_consts::gs;
-    parabola_coeffs(0, 0) = cell_means(INITIAL_PADDING);
-    parabola_coeffs(0, 1) = cell_means(INITIAL_PADDING + 1);
+    parabola_coeffs(0, 0) = cell_means(0);
+    parabola_coeffs(0, 1) = cell_means(1);
 
-    parabola_coeffs(0, NUM_PHYSICAL_LEV - 2) =
-        cell_means(INITIAL_PADDING + NUM_PHYSICAL_LEV - gs);
-    parabola_coeffs(0, NUM_PHYSICAL_LEV - 1) =
-        cell_means(INITIAL_PADDING + NUM_PHYSICAL_LEV - gs + 1);
+    parabola_coeffs(0, NUM_PHYSICAL_LEV - 2) = cell_means(NUM_PHYSICAL_LEV - 2);
+    parabola_coeffs(0, NUM_PHYSICAL_LEV - 1) = cell_means(NUM_PHYSICAL_LEV - 1);
 
     parabola_coeffs(1, 0) = 0.0;
     parabola_coeffs(1, 1) = 0.0;
@@ -139,7 +199,7 @@ struct PpmFixedParabola : public PpmBoundaryConditions {
   KOKKOS_INLINE_FUNCTION
   static void fill_cell_means_gs(
       KernelVariables &kv,
-      ExecViewUnmanaged<Real[_ppm_consts::AO_PHYSICAL_LEV]> cell_means) {
+      GhostedColumn<Real,NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS> cell_means) {
     PpmMirrored::fill_cell_means_gs(kv, cell_means);
   }
 
@@ -147,27 +207,25 @@ struct PpmFixedParabola : public PpmBoundaryConditions {
 };
 
 // Corresponds to remap alg = 3
-struct PpmFixedMeans : public PpmBoundaryConditions {
+struct PpmFixedMeans {
+  // Tag this struct as a ppm boundary condition
+  typedef PpmFixedMeans     ppm_bc_type;
+
   static constexpr int fortran_remap_alg = 3;
 
   KOKKOS_INLINE_FUNCTION
   static void apply_ppm_boundary(
-      ExecViewUnmanaged<const Real[_ppm_consts::AO_PHYSICAL_LEV]> cell_means,
-      ExecViewUnmanaged<Real[3][NUM_PHYSICAL_LEV]> parabola_coeffs) {}
+      GhostedColumn<const Real, NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS> /* cell_means */,
+      ExecViewUnmanaged<Real[3][NUM_PHYSICAL_LEV]> /* parabola_coeffs */) {}
 
   KOKKOS_INLINE_FUNCTION
   static void fill_cell_means_gs(
       KernelVariables &kv,
-      ExecViewUnmanaged<Real[_ppm_consts::AO_PHYSICAL_LEV]> cell_means) {
-    const int gs = _ppm_consts::gs;
-    constexpr int INITIAL_PADDING = _ppm_consts::INITIAL_PADDING;
-    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, gs),
+      GhostedColumn<Real,NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS> cell_means) {
+    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, NUM_GHOSTS),
                          [&](const int &k_0) {
-      cell_means(INITIAL_PADDING - 1 - k_0 - 1 + 1) =
-          cell_means(INITIAL_PADDING);
-
-      cell_means(NUM_PHYSICAL_LEV + INITIAL_PADDING - gs + k_0 + 1 + 1) =
-          cell_means(NUM_PHYSICAL_LEV + INITIAL_PADDING - gs + 1 - 1 + 1);
+      cell_means(- 1 - k_0) = cell_means(0);
+      cell_means(NUM_PHYSICAL_LEV + k_0) = cell_means(NUM_PHYSICAL_LEV - 1 );
     }); // end ghost cell loop
   }
 
@@ -175,23 +233,23 @@ struct PpmFixedMeans : public PpmBoundaryConditions {
 };
 
 // Piecewise Parabolic Method stencil
-template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
-  static_assert(std::is_base_of<PpmBoundaryConditions, boundaries>::value,
-                "PpmVertRemap requires a valid PPM "
-                "boundary condition");
-  const int gs = _ppm_consts::gs;
+template <typename PpmBcType>
+struct PpmVertRemap : public VertRemapAlg {
+  // Checking that the template argument is one of the supported ones
+  static_assert(is_ppm_bc<PpmBcType>::value, "PpmVertRemap requires a valid PPM boundary condition. "
+                                             "If you wrote your own boundary condition class, tag it as such: add "
+                                             "'typedef YOUR_CLASS_NAME  ppm_bc_type' to your class public types.\n");
 
   explicit PpmVertRemap(const int num_elems, const int num_remap)
       : dpo("dpo", num_elems), pio("pio", num_elems), pin("pin", num_elems),
         ppmdx("ppmdx", num_elems), z2("z2", num_elems), kid("kid", num_elems),
         ao("a0", get_num_concurrent_teams<ExecSpace>(num_elems * num_remap)),
-        mass_o("mass_o",
-               get_num_concurrent_teams<ExecSpace>(num_elems * num_remap)),
-        dma("dma", get_num_concurrent_teams<ExecSpace>(num_elems * num_remap)),
-        ai("ai", get_num_concurrent_teams<ExecSpace>(num_elems * num_remap)),
-        parabola_coeffs(
-            "Coefficients for the interpolating parabola",
-            get_num_concurrent_teams<ExecSpace>(num_elems * num_remap)) {}
+        mass_o("mass_o",get_num_concurrent_teams<ExecSpace>(num_elems * num_remap)),
+        m_dma("dma", get_num_concurrent_teams<ExecSpace>(num_elems * num_remap)),
+        m_ai("ai", get_num_concurrent_teams<ExecSpace>(num_elems * num_remap)),
+        m_parabola_coeffs("Coefficients for the interpolating parabola",
+                          get_num_concurrent_teams<ExecSpace>(num_elems * num_remap))
+  {}
 
   KOKKOS_INLINE_FUNCTION
   void compute_grids_phase(
@@ -215,17 +273,16 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
       const int igp = loop_idx / NP;
       const int jgp = loop_idx % NP;
 
+      auto dpo_point_ranged = viewAsRanged<PpmSizes::GHOSTED_COLUMN_FIRST_IDX>(Homme::subview(dpo, kv.ie, igp, jgp));
+      auto ao_point_ranged = viewAsRanged<PpmSizes::GHOSTED_COLUMN_FIRST_IDX>(Homme::subview(dpo, kv.team_idx, igp, jgp));
+      auto remap_var_point = reinterpretView<Real>(Homme::subview(remap_var,igp,jgp));
+
       Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, NUM_PHYSICAL_LEV),
                            [&](const int k) {
-        const int ilevel = k / VECTOR_SIZE;
-        const int ivector = k % VECTOR_SIZE;
-        ao(kv.team_idx, igp, jgp, k + _ppm_consts::INITIAL_PADDING) =
-            remap_var(igp, jgp, ilevel)[ivector] /
-            dpo(kv.ie, igp, jgp, k + _ppm_consts::INITIAL_PADDING);
+        ao_point_ranged(k) = remap_var_point(k) / dpo_point_ranged(k);
       });
 
-      boundaries::fill_cell_means_gs(kv,
-                                     Homme::subview(ao, kv.team_idx, igp, jgp));
+      PpmBcType::fill_cell_means_gs(kv, viewAsRanged<PpmSizes::GHOSTED_COLUMN_FIRST_IDX>(Homme::subview(ao, kv.team_idx, igp, jgp)));
 
       Dispatch<ExecSpace>::parallel_scan(
           kv.team, NUM_PHYSICAL_LEV,
@@ -237,9 +294,10 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
             if (last) {
               mass_o(kv.team_idx, igp, jgp, k + 1) = accumulator;
             }
-            const int ilevel = k / VECTOR_SIZE;
-            const int ivector = k % VECTOR_SIZE;
-            accumulator += remap_var(igp, jgp, ilevel)[ivector];
+            // const int ilevel = k / VECTOR_SIZE;
+            // const int ivector = k % VECTOR_SIZE;
+            // accumulator += remap_var(igp, jgp, ilevel)[ivector];
+            accumulator += remap_var_point(k);
           });
 
       Kokkos::single(Kokkos::PerThread(kv.team), [&]() {
@@ -254,14 +312,15 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
       // the ghost cells
 
       // Computes a monotonic and conservative PPM reconstruction
-      compute_ppm(kv, Homme::subview(ao, kv.team_idx, igp, jgp),
-                  Homme::subview(ppmdx, kv.ie, igp, jgp),
-                  Homme::subview(dma, kv.team_idx, igp, jgp),
-                  Homme::subview(ai, kv.team_idx, igp, jgp),
-                  Homme::subview(parabola_coeffs, kv.team_idx, igp, jgp));
+      compute_ppm(kv,
+                  viewAsRanged<PpmSizes::GHOSTED_COLUMN_FIRST_IDX>(Homme::subview(ao, kv.team_idx, igp, jgp)),
+                  viewAsRanged<0,PpmSizes::GHOSTED_COLUMN_FIRST_IDX>(Homme::subview(ppmdx, kv.ie, igp, jgp)),
+                  viewAsRanged<-1>(Homme::subview(m_dma, kv.team_idx, igp, jgp)),
+                  viewAsRanged<-1>(Homme::subview(m_ai, kv.team_idx, igp, jgp)),
+                  Homme::subview(m_parabola_coeffs, kv.team_idx, igp, jgp));
       compute_remap(kv, Homme::subview(kid, kv.ie, igp, jgp),
                     Homme::subview(z2, kv.ie, igp, jgp),
-                    Homme::subview(parabola_coeffs, kv.team_idx, igp, jgp),
+                    Homme::subview(m_parabola_coeffs, kv.team_idx, igp, jgp),
                     Homme::subview(mass_o, kv.team_idx, igp, jgp),
                     Homme::subview(dpo, kv.ie, igp, jgp),
                     Homme::subview(remap_var, igp, jgp));
@@ -284,6 +343,28 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
     return mass;
   }
 
+
+  KOKKOS_FORCEINLINE_FUNCTION
+  void compute_mass(ExecViewUnmanaged<Real[NUM_PHYSICAL_LEV]> mass,
+                    const int k,
+                    ExecViewUnmanaged<const int[NUM_PHYSICAL_LEV]> k_id,
+                    ExecViewUnmanaged<const Real[NUM_PHYSICAL_LEV]> integral_bounds,
+                    ExecViewUnmanaged<const Real[3][NUM_PHYSICAL_LEV]> parabola_coeffs,
+                    GhostedColumn<const Real,NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS> prev_dp) const {
+                    // ExecViewUnmanaged<const Real[PpmSizes::DP_OLD_COLUMN_LENGTH]> prev_dp) const {
+
+      const int kk_cur_lev = k_id(k);
+      assert(kk_cur_lev + 1 >= k);
+      assert(kk_cur_lev < parabola_coeffs.extent_int(1));
+
+      const Real x2_cur_lev = integral_bounds(k);
+    
+      mass(k) = compute_mass(
+          parabola_coeffs(2, kk_cur_lev), parabola_coeffs(1, kk_cur_lev),
+          parabola_coeffs(0, kk_cur_lev), mass(kk_cur_lev + 1),
+          prev_dp(kk_cur_lev), x2_cur_lev);
+  }
+
   template <typename ExecSpaceType = ExecSpace>
   KOKKOS_INLINE_FUNCTION typename std::enable_if<
       !Homme::OnGpu<ExecSpaceType>::value, void>::type
@@ -291,9 +372,10 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
       KernelVariables &kv, ExecViewUnmanaged<const int[NUM_PHYSICAL_LEV]> k_id,
       ExecViewUnmanaged<const Real[NUM_PHYSICAL_LEV]> integral_bounds,
       ExecViewUnmanaged<const Real[3][NUM_PHYSICAL_LEV]> parabola_coeffs,
-      ExecViewUnmanaged<Real[_ppm_consts::MASS_O_PHYSICAL_LEV]> mass,
-      ExecViewUnmanaged<const Real[_ppm_consts::DPO_PHYSICAL_LEV]> prev_dp,
-      ExecViewUnmanaged<Scalar[NUM_LEV]> remap_var) const {
+      ExecViewUnmanaged<Real[PpmSizes::MASS_COLUMN_LENGTH]> mass,
+      ExecViewUnmanaged<const Real[PpmSizes::DP_OLD_COLUMN_LENGTH]> prev_dp,
+      ExecViewUnmanaged<Real[NUM_PHYSICAL_LEV]> remap_var) const {
+
     // Compute tracer values on the new grid by integrating from the old cell
     // bottom to the new cell interface to form a new grid mass accumulation.
     // Store the mass in the integral bounds for that level
@@ -313,17 +395,13 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
       mass(k) = compute_mass(
           parabola_coeffs(2, kk_cur_lev), parabola_coeffs(1, kk_cur_lev),
           parabola_coeffs(0, kk_cur_lev), mass(kk_cur_lev + 1),
-          prev_dp(kk_cur_lev + _ppm_consts::INITIAL_PADDING), x2_cur_lev);
+          prev_dp(kk_cur_lev), x2_cur_lev);
     });
-    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, NUM_PHYSICAL_LEV),
+
+    remap_var(0) = mass(0);
+    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, 1, NUM_PHYSICAL_LEV),
                          [&](const int k) {
-      const int ilevel = k / VECTOR_SIZE;
-      const int ivector = k % VECTOR_SIZE;
-      if (k > 0) {
-        remap_var(ilevel)[ivector] = mass(k) - mass(k - 1);
-      } else {
-        remap_var(ilevel)[ivector] = mass(k);
-      }
+      remap_var(k) = mass(k) - mass(k - 1);
     }); // k loop
   }
 
@@ -334,9 +412,9 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
       KernelVariables &kv, ExecViewUnmanaged<const int[NUM_PHYSICAL_LEV]> k_id,
       ExecViewUnmanaged<const Real[NUM_PHYSICAL_LEV]> integral_bounds,
       ExecViewUnmanaged<const Real[3][NUM_PHYSICAL_LEV]> parabola_coeffs,
-      ExecViewUnmanaged<Real[_ppm_consts::MASS_O_PHYSICAL_LEV]> prev_mass,
-      ExecViewUnmanaged<const Real[_ppm_consts::DPO_PHYSICAL_LEV]> prev_dp,
-      ExecViewUnmanaged<Scalar[NUM_LEV]> remap_var) const {
+      ExecViewUnmanaged<Real[PpmSizes::MASS_COLUMN_LENGTH]> prev_mass,
+      GhostedColumn<const Real,NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS> prev_dp,
+      ExecViewUnmanaged<Real[NUM_PHYSICAL_LEV]> remap_var) const {
     // This duplicates work, but the parallel gain on CUDA is >> 2
     Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, NUM_PHYSICAL_LEV),
                          [&](const int k) {
@@ -346,7 +424,7 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
                     parabola_coeffs(2, k_id(k - 1)),
                     parabola_coeffs(1, k_id(k - 1)),
                     parabola_coeffs(0, k_id(k - 1)), prev_mass(k_id(k - 1) + 1),
-                    prev_dp(k_id(k - 1) + _ppm_consts::INITIAL_PADDING),
+                    prev_dp(k_id(k - 1)),
                     integral_bounds(k - 1))
               : 0.0;
 
@@ -359,60 +437,46 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
       const Real mass_2 = compute_mass(
           parabola_coeffs(2, kk_cur_lev), parabola_coeffs(1, kk_cur_lev),
           parabola_coeffs(0, kk_cur_lev), prev_mass(kk_cur_lev + 1),
-          prev_dp(kk_cur_lev + _ppm_consts::INITIAL_PADDING), x2_cur_lev);
+          prev_dp(kk_cur_lev), x2_cur_lev);
 
-      const int ilevel = k / VECTOR_SIZE;
-      const int ivector = k % VECTOR_SIZE;
-      remap_var(ilevel)[ivector] = mass_2 - mass_1;
+      remap_var(k) = mass_2 - mass_1;
     }); // k loop
   }
 
   KOKKOS_INLINE_FUNCTION
   void compute_grids(
       KernelVariables &kv,
-      const ExecViewUnmanaged<const Real[_ppm_consts::DPO_PHYSICAL_LEV]> dx,
-      const ExecViewUnmanaged<Real[10][_ppm_consts::PPMDX_PHYSICAL_LEV]> grids)
+      const GhostedColumn<const Real,NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS> dx,
+      // const ExecViewUnmanaged<const Real[PpmSizes::DP_OLD_COLUMN_LENGTH]> dx,
+      const ExecViewUnmanaged<Real[10][PpmSizes::PPMDX_COLUMN_LENGTH]> grids)
       const {
-    constexpr int dpo_offset = _ppm_consts::INITIAL_PADDING - _ppm_consts::gs;
-    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team,
-                                                   NUM_PHYSICAL_LEV + 2),
+
+    // Calculate grid-based coefficients for stage 1 of compute_ppm
+    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team,NUM_PHYSICAL_LEV + 2),
                          [&](const int j) {
-      grids(0, j) = dx(j + 1 + dpo_offset) /
-                    (dx(j + dpo_offset) + dx(j + 1 + dpo_offset) +
-                     dx(j + 2 + dpo_offset));
+      grids(0, j) = dx(j) / (dx(j-1) + dx(j) + dx(j+1));
 
-      grids(1, j) = (2.0 * dx(j + dpo_offset) + dx(j + 1 + dpo_offset)) /
-                    (dx(j + 1 + dpo_offset) + dx(j + 2 + dpo_offset));
+      grids(1, j) = (2.0*dx(j-1) + dx(j)) / (dx(j+1) + dx(j));
 
-      grids(2, j) = (dx(j + 1 + dpo_offset) + 2.0 * dx(j + 2 + dpo_offset)) /
-                    (dx(j + dpo_offset) + dx(j + 1 + dpo_offset));
+      grids(2, j) = (dx(j) + 2.0*dx(j+1)) / (dx(j-1) + dx(j));
     });
 
-    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team,
-                                                   NUM_PHYSICAL_LEV + 1),
+    // Caculate grid-based coefficients for stage 2 of compute_ppm
+    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team,NUM_PHYSICAL_LEV + 1),
                          [&](const int j) {
-      grids(3, j) = dx(j + 1 + dpo_offset) /
-                    (dx(j + 1 + dpo_offset) + dx(j + 2 + dpo_offset));
+      grids(3, j) = dx(j) / (dx(j) + dx(j+1));
 
-      grids(4, j) = 1.0 / (dx(j + dpo_offset) + dx(j + 1 + dpo_offset) +
-                           dx(j + 2 + dpo_offset) + dx(j + 3 + dpo_offset));
+      grids(4, j) = 1.0 / (dx(j-1) + dx(j) + dx(j+1) + dx(j+2));
 
-      grids(5, j) = (2.0 * dx(j + 1 + dpo_offset) * dx(j + 2 + dpo_offset)) /
-                    (dx(j + 1 + dpo_offset) + dx(j + 2 + dpo_offset));
+      grids(5, j) = (2.0 * dx(j+1) * dx(j)) / (dx(j) + dx(j+1));
 
-      grids(6, j) = (dx(j + dpo_offset) + dx(j + 1 + dpo_offset)) /
-                    (2.0 * dx(j + 1 + dpo_offset) + dx(j + 2 + dpo_offset));
+      grids(6, j) = (dx(j-1) + dx(j)) / (2.0 * dx(j) + dx(j+1));
 
-      grids(7, j) = (dx(j + 3 + dpo_offset) + dx(j + 2 + dpo_offset)) /
-                    (2.0 * dx(j + 2 + dpo_offset) + dx(j + 1 + dpo_offset));
+      grids(7, j) = (dx(j+2) + dx(j+1)) / (2.0 * dx(j+1) + dx(j));
 
-      grids(8, j) = dx(j + 1 + dpo_offset) *
-                    (dx(j + dpo_offset) + dx(j + 1 + dpo_offset)) /
-                    (2.0 * dx(j + 1 + dpo_offset) + dx(j + 2 + dpo_offset));
+      grids(8, j) = dx(j) * (dx(j-1) + dx(j)) / (2.0 * dx(j) + dx(j+1));
 
-      grids(9, j) = dx(j + 2 + dpo_offset) *
-                    (dx(j + 2 + dpo_offset) + dx(j + 3 + dpo_offset)) /
-                    (dx(j + 1 + dpo_offset) + 2.0 * dx(j + 2 + dpo_offset));
+      grids(9, j) = dx(j+1) * (dx(j+1) + dx(j+2)) / (dx(j) + 2.0 * dx(j+1));
     });
   }
 
@@ -420,49 +484,43 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
   void compute_ppm(
       KernelVariables &kv,
       // input  views
-      ExecViewUnmanaged<const Real[_ppm_consts::AO_PHYSICAL_LEV]> cell_means,
-      ExecViewUnmanaged<const Real[10][_ppm_consts::PPMDX_PHYSICAL_LEV]> dx,
+      GhostedColumn<const Real, NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS> cell_means,
+      GhostedColumns<const Real,10,NUM_PHYSICAL_LEV,1,1> dx,
       // buffer views
-      ExecViewUnmanaged<Real[_ppm_consts::DMA_PHYSICAL_LEV]> dma,
-      ExecViewUnmanaged<Real[_ppm_consts::AI_PHYSICAL_LEV]> ai,
+      GhostedColumn<Real,NUM_PHYSICAL_LEV,1,1> dma,
+      GhostedColumn<Real,NUM_PHYSICAL_LEV,1,0> ai,
       // result view
       ExecViewUnmanaged<Real[3][NUM_PHYSICAL_LEV]> parabola_coeffs) const {
-    const auto INITIAL_PADDING = _ppm_consts::INITIAL_PADDING;
-    const auto gs = _ppm_consts::gs;
 
-    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team,
-                                                   NUM_PHYSICAL_LEV + 2),
+    // Stage 1: Compute dma for each cell, allowing a 1-cell ghost stencil below and above the domain
+    Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, -1,NUM_PHYSICAL_LEV + 1),
                          [&](const int j) {
-      if ((cell_means(j + INITIAL_PADDING) -
-           cell_means(j + INITIAL_PADDING - 1)) *
-              (cell_means(j + INITIAL_PADDING - 1) -
-               cell_means(j + INITIAL_PADDING - gs)) >
-          0.0) {
+      if ((cell_means(j + 1) - cell_means(j)) *
+          (cell_means(j) - cell_means(j - 1)) > 0.0) {
         Real da =
-            dx(0, j) * (dx(1, j) * (cell_means(j + INITIAL_PADDING) -
-                                    cell_means(j + INITIAL_PADDING - 1)) +
-                        dx(2, j) * (cell_means(j + INITIAL_PADDING - 1) -
-                                    cell_means(j + INITIAL_PADDING - gs)));
+            dx(0, j) * (dx(1, j) * (cell_means(j + 1) -
+                                    cell_means(j)) +
+                        dx(2, j) * (cell_means(j) -
+                                    cell_means(j - 1)));
 
-        dma(j) = min(fabs(da), 2.0 * fabs(cell_means(j + INITIAL_PADDING - 1) -
-                                          cell_means(j + INITIAL_PADDING - gs)),
-                     2.0 * fabs(cell_means(j + INITIAL_PADDING) -
-                                cell_means(j + INITIAL_PADDING - 1))) *
+        dma(j) = min(fabs(da),
+                     2.0 * fabs(cell_means(j) -
+                                cell_means(j - 1)),
+                     2.0 * fabs(cell_means(j + 1) -
+                                cell_means(j))) *
                  copysign(1.0, da);
       } else {
         dma(j) = 0.0;
       }
     });
 
+    // Stage 2: Compute ai for each cell interface in the physical domain
     Kokkos::parallel_for(
-        Kokkos::ThreadVectorRange(kv.team, NUM_PHYSICAL_LEV + 1),
+        Kokkos::ThreadVectorRange(kv.team, -1, NUM_PHYSICAL_LEV),
         [&](const int j) {
-          ai(j) = cell_means(j + INITIAL_PADDING - 1) +
-                  dx(3, j) * (cell_means(j + INITIAL_PADDING) -
-                              cell_means(j + INITIAL_PADDING - 1)) +
-                  dx(4, j) * (dx(5, j) * (dx(6, j) - dx(7, j)) *
-                                  (cell_means(j + INITIAL_PADDING) -
-                                   cell_means(j + INITIAL_PADDING - 1)) -
+          ai(j) = cell_means(j) +
+                  dx(3, j) * (cell_means(j + 1) - cell_means(j)) +
+                  dx(4, j) * (dx(5, j) * (dx(6, j) - dx(7, j)) * (cell_means(j + 1) - cell_means(j)) -
                               dx(8, j) * dma(j + 1) + dx(9, j) * dma(j));
         });
 
@@ -471,19 +529,19 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
       const int j = j_prev + 1;
       Real al = ai(j - 1);
       Real ar = ai(j);
-      if ((ar - cell_means(j + INITIAL_PADDING - 1)) *
-              (cell_means(j + INITIAL_PADDING - 1) - al) <=
+      if ((ar - cell_means(j - 1)) *
+              (cell_means(j - 1) - al) <=
           0.) {
-        al = cell_means(j + INITIAL_PADDING - 1);
-        ar = cell_means(j + INITIAL_PADDING - 1);
+        al = cell_means(j - 1);
+        ar = cell_means(j - 1);
       }
-      if ((ar - al) * (cell_means(j + INITIAL_PADDING - 1) - (al + ar) / 2.0) >
+      if ((ar - al) * (cell_means(j - 1) - (al + ar) / 2.0) >
           (ar - al) * (ar - al) / 6.0) {
-        al = 3.0 * cell_means(j + INITIAL_PADDING - 1) - 2.0 * ar;
+        al = 3.0 * cell_means(j - 1) - 2.0 * ar;
       }
-      if ((ar - al) * (cell_means(j + INITIAL_PADDING - 1) - (al + ar) / 2.0) <
+      if ((ar - al) * (cell_means(j - 1) - (al + ar) / 2.0) <
           -(ar - al) * (ar - al) / 6.0) {
-        ar = 3.0 * cell_means(j + INITIAL_PADDING - 1) - 2.0 * al;
+        ar = 3.0 * cell_means(j - 1) - 2.0 * al;
       }
 
       // Computed these coefficients from the edge values
@@ -495,14 +553,14 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
       assert(2 < parabola_coeffs.extent_int(0));
 
       parabola_coeffs(0, j - 1) =
-          1.5 * cell_means(j + INITIAL_PADDING - 1) - (al + ar) / 4.0;
+          1.5 * cell_means(j - 1) - (al + ar) / 4.0;
       parabola_coeffs(1, j - 1) = ar - al;
       parabola_coeffs(2, j - 1) =
-          3.0 * (-2.0 * cell_means(j + INITIAL_PADDING - 1) + (al + ar));
+          3.0 * (-2.0 * cell_means(j - 1) + (al + ar));
     });
 
     Kokkos::single(Kokkos::PerThread(kv.team), [&]() {
-      boundaries::apply_ppm_boundary(cell_means, parabola_coeffs);
+      PpmBcType::apply_ppm_boundary(cell_means, parabola_coeffs);
     });
   }
 
@@ -516,9 +574,9 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
                          [&](const int &loop_idx) {
       const int igp = loop_idx / NP;
       const int jgp = loop_idx % NP;
-      ExecViewUnmanaged<Real[_ppm_consts::PIO_PHYSICAL_LEV]> pt_pio =
+      ExecViewUnmanaged<Real[NUM_INTERFACE_LEV+1]> pt_pio =
           Homme::subview(pio, kv.ie, igp, jgp);
-      ExecViewUnmanaged<Real[_ppm_consts::PIN_PHYSICAL_LEV]> pt_pin =
+      ExecViewUnmanaged<Real[NUM_INTERFACE_LEV]> pt_pin =
           Homme::subview(pin, kv.ie, igp, jgp);
       ExecViewUnmanaged<const Scalar[NUM_LEV]> pt_src_thickness =
           Homme::subview(src_layer_thickness, igp, jgp);
@@ -560,8 +618,8 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
         assert(fabs(pio(kv.ie, igp, jgp, NUM_PHYSICAL_LEV) -
                     pin(kv.ie, igp, jgp, NUM_PHYSICAL_LEV)) < 1.0);
 
-        pt_pio(_ppm_consts::PIO_PHYSICAL_LEV - 1) =
-            pt_pio(_ppm_consts::PIO_PHYSICAL_LEV - 2) + 1.0;
+        pt_pio(NUM_INTERFACE_LEV) =
+            pt_pio(NUM_INTERFACE_LEV-1) + 1.0;
 
         // The total mass in a column does not change.
         // Therefore, the pressure of that mass cannot
@@ -569,12 +627,14 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
         pt_pin(NUM_PHYSICAL_LEV) = pt_pio(NUM_PHYSICAL_LEV);
       });
 
+      auto dpo_col = GhostedColumn<Real,NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS>
+                      (Homme::subview(dpo,kv.ie,igp,jgp));
       Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, NUM_PHYSICAL_LEV),
                            [&](const int &k) {
         int ilevel = k / VECTOR_SIZE;
         int ivector = k % VECTOR_SIZE;
-        dpo(kv.ie, igp, jgp, k + _ppm_consts::INITIAL_PADDING) =
-            src_layer_thickness(igp, jgp, ilevel)[ivector];
+        // dpo(kv.ie, igp, jgp, k + PpmSizes::INITIAL_PADDING) =
+        dpo_col(k) = src_layer_thickness(igp, jgp, ilevel)[ivector];
       });
     });
     kv.team_barrier();
@@ -587,14 +647,18 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
                          [&](const int &loop_idx) {
       const int igp = loop_idx / NP;
       const int jgp = loop_idx % NP;
-      Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, gs),
+      auto dpo_col = GhostedColumn<Real,NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS>
+                      (Homme::subview(dpo,kv.ie,igp,jgp));
+      Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, NUM_GHOSTS),
                            [&](const int &k) {
-        dpo(kv.ie, igp, jgp, _ppm_consts::INITIAL_PADDING - 1 - k) =
-            dpo(kv.ie, igp, jgp, k + _ppm_consts::INITIAL_PADDING);
-        dpo(kv.ie, igp, jgp,
-            NUM_PHYSICAL_LEV + _ppm_consts::INITIAL_PADDING + k) =
-            dpo(kv.ie, igp, jgp,
-                NUM_PHYSICAL_LEV + _ppm_consts::INITIAL_PADDING - 1 - k);
+        // dpo(kv.ie, igp, jgp, PpmSizes::INITIAL_PADDING - 1 - k) =
+        //     dpo(kv.ie, igp, jgp, k + PpmSizes::INITIAL_PADDING);
+        // dpo(kv.ie, igp, jgp,
+        //     NUM_PHYSICAL_LEV + PpmSizes::INITIAL_PADDING + k) =
+        //     dpo(kv.ie, igp, jgp,
+        //         NUM_PHYSICAL_LEV + PpmSizes::INITIAL_PADDING - 1 - k);
+        dpo_col( - 1 - k) = dpo_col(k);
+        dpo_col(NUM_PHYSICAL_LEV + k) = dpo_col(NUM_PHYSICAL_LEV - 1 - k);
       });
     });
     kv.team_barrier();
@@ -606,6 +670,8 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
                          [&](const int &loop_idx) {
       const int igp = loop_idx / NP;
       const int jgp = loop_idx % NP;
+      auto point_dpo = GhostedColumn<Real,NUM_PHYSICAL_LEV,NUM_GHOSTS,NUM_GHOSTS>
+                      (Homme::subview(dpo,kv.ie,igp,jgp));
       Kokkos::parallel_for(Kokkos::ThreadVectorRange(kv.team, NUM_PHYSICAL_LEV),
                            [&](const int k) {
         // Compute remapping intervals once for all
@@ -634,7 +700,7 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
         // NUM_PHYSICAL_LEV + 2 Furthermore, since we set pio(:, :, :,
         // 0) = 0.0 and pin(:, :, :, 0) = 0.0 kk must be incremented at
         // least once
-        assert(pio(kv.ie, igp, jgp, _ppm_consts::PIO_PHYSICAL_LEV - 1) >
+        assert(pio(kv.ie, igp, jgp, PpmSizes::P_OLD_COLUMN_LENGTH - 1) >
                pin(kv.ie, igp, jgp, k + 1));
         while (pio(kv.ie, igp, jgp, kk - 1) <= pin(kv.ie, igp, jgp, k + 1)) {
           kk++;
@@ -643,8 +709,8 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
 
         kk--;
         // This is to keep the indices in bounds.
-        if (kk == _ppm_consts::PIN_PHYSICAL_LEV) {
-          kk = _ppm_consts::PIN_PHYSICAL_LEV - 1;
+        if (kk == PpmSizes::P_NEW_COLUMN_LENGTH) {
+          kk = PpmSizes::P_NEW_COLUMN_LENGTH - 1;
         }
         // kk is now the cell index we're integrating over.
 
@@ -658,12 +724,11 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
         z2(kv.ie, igp, jgp, k) =
             (pin(kv.ie, igp, jgp, k + 1) -
              (pio(kv.ie, igp, jgp, kk - 1) + pio(kv.ie, igp, jgp, kk)) * 0.5) /
-            dpo(kv.ie, igp, jgp, kk + 1 + _ppm_consts::INITIAL_PADDING - gs);
+            // dpo(kv.ie, igp, jgp, kk + 1 + PpmSizes::INITIAL_PADDING - NUM_GHOSTS);
+            point_dpo(kk - 1);
       });
 
-      ExecViewUnmanaged<Real[_ppm_consts::DPO_PHYSICAL_LEV]> point_dpo =
-          Homme::subview(dpo, kv.ie, igp, jgp);
-      ExecViewUnmanaged<Real[10][_ppm_consts::PPMDX_PHYSICAL_LEV]> point_ppmdx =
+      ExecViewUnmanaged<Real[10][PpmSizes::PPMDX_COLUMN_LENGTH]> point_ppmdx =
           Homme::subview(ppmdx, kv.ie, igp, jgp);
       compute_grids(kv, point_dpo, point_ppmdx);
     });
@@ -676,20 +741,20 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
            sq_coeff * (x2 * x2 * x2 - x1 * x1 * x1) / 3.0;
   }
 
-  ExecViewManaged<Real * [NP][NP][_ppm_consts::DPO_PHYSICAL_LEV]> dpo;
-  // pio corresponds to the points in each layer of the source layer thickness
-  ExecViewManaged<Real * [NP][NP][_ppm_consts::PIO_PHYSICAL_LEV]> pio;
-  // pin corresponds to the points in each layer of the target layer thickness
-  ExecViewManaged<Real * [NP][NP][_ppm_consts::PIN_PHYSICAL_LEV]> pin;
-  ExecViewManaged<Real * [NP][NP][10][_ppm_consts::PPMDX_PHYSICAL_LEV]> ppmdx;
+  ExecViewManaged<Real * [NP][NP][PpmSizes::DP_OLD_COLUMN_LENGTH]> dpo;
+  // pio corresponds to the points in each layer of the source (old) layer thickness
+  ExecViewManaged<Real * [NP][NP][PpmSizes::P_OLD_COLUMN_LENGTH]> pio;
+  // pin corresponds to the points in each layer of the target (new) layer thickness
+  ExecViewManaged<Real * [NP][NP][PpmSizes::P_NEW_COLUMN_LENGTH]> pin;
+  ExecViewManaged<Real * [NP][NP][10][PpmSizes::PPMDX_COLUMN_LENGTH]> ppmdx;
   ExecViewManaged<Real * [NP][NP][NUM_PHYSICAL_LEV]> z2;
   ExecViewManaged<int * [NP][NP][NUM_PHYSICAL_LEV]> kid;
 
-  ExecViewManaged<Real * [NP][NP][_ppm_consts::AO_PHYSICAL_LEV]> ao;
-  ExecViewManaged<Real * [NP][NP][_ppm_consts::MASS_O_PHYSICAL_LEV]> mass_o;
-  ExecViewManaged<Real * [NP][NP][_ppm_consts::DMA_PHYSICAL_LEV]> dma;
-  ExecViewManaged<Real * [NP][NP][_ppm_consts::AI_PHYSICAL_LEV]> ai;
-  ExecViewManaged<Real * [NP][NP][3][NUM_PHYSICAL_LEV]> parabola_coeffs;
+  ExecViewManaged<Real * [NP][NP][PpmSizes::AO_COLUMN_LENGTH]>      ao;
+  ExecViewManaged<Real * [NP][NP][PpmSizes::MASS_COLUMN_LENGTH]>    mass_o;
+  ExecViewManaged<Real * [NP][NP][PpmSizes::DMA_COLUMN_LENGTH]>     m_dma;
+  ExecViewManaged<Real * [NP][NP][PpmSizes::AI_COLUMN_LENGTH]>      m_ai;
+  ExecViewManaged<Real * [NP][NP][3][NUM_PHYSICAL_LEV]>             m_parabola_coeffs;
 };
 
 } // namespace Ppm
@@ -697,5 +762,3 @@ template <typename boundaries> struct PpmVertRemap : public VertRemapAlg {
 } // namespace Homme
 
 #endif // HOMMEXX_PPM_REMAP_HPP
-
-#endif
