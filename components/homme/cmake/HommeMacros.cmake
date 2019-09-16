@@ -112,7 +112,6 @@ macro(createTestExec execName execType macroNP macroNC
   ADD_DEFINITIONS(-DHAVE_CONFIG_H)
 
   ADD_EXECUTABLE(${execName} ${EXEC_SOURCES})
-  SET_TARGET_PROPERTIES(${execName} PROPERTIES LINKER_LANGUAGE Fortran)
 
   IF (CXXLIB_SUPPORTED_CACHE)
     MESSAGE(STATUS "   Linking Fortran with -cxxlib")
