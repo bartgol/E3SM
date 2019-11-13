@@ -221,6 +221,10 @@ SET (PPM_REMAP_UT_F90_SRCS
   ${SRC_SHARE_DIR}/kinds.F90
   ${SRC_SHARE_DIR}/parallel_mod.F90
   ${SRC_SHARE_DIR}/vertremap_base.F90
+  ${SRC_SHARE_DIR}/physical_constants.F90
+  ${SRC_SHARE_DIR}/hybvcoord_mod.F90
+  ${UTILS_TIMING_DIR}/perf_mod.F90
+  ${UTILS_TIMING_DIR}/perf_utils.F90
   ${SHARE_UT_DIR}/ppm_remap_interface.F90
 )
 
