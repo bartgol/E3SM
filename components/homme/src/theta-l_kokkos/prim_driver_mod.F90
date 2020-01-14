@@ -17,7 +17,8 @@ contains
     use iso_c_binding,    only : c_loc, c_ptr, c_bool, C_NULL_CHAR
     use control_mod,      only : limiter_option, rsplit, qsplit, tstep_type, statefreq,  &
                                  nu, nu_p, nu_q, nu_s, nu_div, nu_top, vert_remap_q_alg, &
-                                 hypervis_order, hypervis_subcycle, hypervis_scaling,    &
+                                 hypervis_order, hypervis_scaling,                       &
+                                 hypervis_subcycle, hypervis_subcycle_tom,               & 
                                  ftype, prescribed_wind, moisture, disable_diagnostics,  &
                                  use_cpstar, transport_alg, theta_hydrostatic_mode,      &
                                  dcmip16_mu, theta_advect_form, test_case, MAX_STRING_LEN
@@ -44,11 +45,15 @@ contains
         !
         type (c_ptr), intent(in) :: deriv_ptr, mass_ptr
       end subroutine init_reference_element_c
-      subroutine init_simulation_params_c (remap_alg, limiter_option, rsplit, qsplit, time_step_type,    &
-                                           qsize, state_frequency, nu, nu_p, nu_q, nu_s, nu_div, nu_top, &
-                                           hypervis_order, hypervis_subcycle, hypervis_scaling,          &
-                                           dcmip16_mu, ftype, theta_adv_form, prescribed_wind, moisture, &
-                                           disable_diagnostics, use_cpstar, use_semi_lagrange_transport, &
+      subroutine init_simulation_params_c (remap_alg, limiter_option, rsplit, qsplit, &
+                                           tstep_type, qsize, state_frequency,        &
+                                           nu, nu_p, nu_q, nu_s, nu_div, nu_top,      &
+                                           hypervis_order, hypervis_scaling,          &
+                                           hypervis_subcycle, hypervis_subcycle_tom,  &
+                                           dcmip16_mu, ftype,                         &
+                                           theta_adv_form, prescribed_wind,           &
+                                           moisture, disable_diagnostics,             &
+                                           use_cpstar, use_semi_lagrange_transport,   &
                                            theta_hydrostatic_mode, test_case_name) bind(c)
         use iso_c_binding, only: c_int, c_bool, c_double, c_ptr
         !
@@ -57,7 +62,7 @@ contains
         integer(kind=c_int),  intent(in) :: remap_alg, limiter_option, rsplit, qsplit, time_step_type
         integer(kind=c_int),  intent(in) :: state_frequency, qsize
         real(kind=c_double),  intent(in) :: nu, nu_p, nu_q, nu_s, nu_div, nu_top, hypervis_scaling, dcmip16_mu
-        integer(kind=c_int),  intent(in) :: hypervis_order, hypervis_subcycle
+        integer(kind=c_int),  intent(in) :: hypervis_order, hypervis_subcycle, hypervis_subcycle_tom
         integer(kind=c_int),  intent(in) :: ftype, theta_adv_form
         logical(kind=c_bool), intent(in) :: prescribed_wind, moisture, disable_diagnostics, use_cpstar
         logical(kind=c_bool), intent(in) :: use_semi_lagrange_transport, theta_hydrostatic_mode
@@ -182,16 +187,18 @@ contains
     ! Fill the simulation params structures in C++
     use_semi_lagrange_transport = transport_alg > 0
     test_name = TRIM(test_case) // C_NULL_CHAR
-    call init_simulation_params_c (vert_remap_q_alg, limiter_option, rsplit, qsplit, tstep_type,  &
-                                   qsize, statefreq, nu, nu_p, nu_q, nu_s, nu_div, nu_top,        &
-                                   hypervis_order, hypervis_subcycle, hypervis_scaling,           &
-                                   dcmip16_mu, ftype, theta_advect_form,                          &
-                                   LOGICAL(prescribed_wind==1,c_bool),                            &
-                                   LOGICAL(moisture/="dry",c_bool),                               &
-                                   LOGICAL(disable_diagnostics,c_bool),                           &
-                                   LOGICAL(use_cpstar==1,c_bool),                                 &
-                                   LOGICAL(use_semi_lagrange_transport,c_bool),                   &
-                                   LOGICAL(theta_hydrostatic_mode,c_bool),                        &
+    call init_simulation_params_c (vert_remap_q_alg, limiter_option, rsplit, qsplit, &
+                                   tstep_type, qsize, statefreq,                     &
+                                   nu, nu_p, nu_q, nu_s, nu_div, nu_top,             &
+                                   hypervis_order, hypervis_scaling,                 &
+                                   hypervis_subcycle, hypervis_subcycle_tom,         &
+                                   dcmip16_mu, ftype, theta_advect_form,             &
+                                   LOGICAL(prescribed_wind==1,c_bool),               &
+                                   LOGICAL(moisture/="dry",c_bool),                  &
+                                   LOGICAL(disable_diagnostics,c_bool),              &
+                                   LOGICAL(use_cpstar==1,c_bool),                    &
+                                   LOGICAL(use_semi_lagrange_transport,c_bool),      &
+                                   LOGICAL(theta_hydrostatic_mode,c_bool),           &
                                    c_loc(test_name))
 
     ! Initialize time level structure in C++

@@ -22,7 +22,9 @@ HyperviscosityFunctorImpl (const SimulationParams&     params,
                            const ElementsGeometry&     geometry,
                            const ElementsState&        state,
                            const ElementsDerivedState& derived)
- : m_data (params.hypervis_subcycle,params.nu_ratio1,params.nu_ratio2,params.nu_top,params.nu,params.nu_p,params.nu_s,params.hypervis_scaling)
+ : m_data (params.hypervis_subcycle, params.hypervis_subcycle_tom,
+           params.nu_ratio1,params.nu_ratio2,params.nu_top,
+           params.nu,params.nu_p,params.nu_s,params.hypervis_scaling)
  , m_state   (state)
  , m_derived (derived)
  , m_geometry (geometry)
