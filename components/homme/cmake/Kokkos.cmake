@@ -14,10 +14,10 @@ if (NOT DEFINED E3SM_KOKKOS_PATH)
 else ()
   message ("The installation of kokkos in ${E3SM_KOKKOS_PATH} will be used.")
   SET (KOKKOS_INCLUDE_DIR ${E3SM_KOKKOS_PATH}/include)
-  SET (KOKKOS_LIBRARY_DIR ${E3SM_KOKKOS_PATH}/lib)
+  SET (KOKKOS_LIBRARY_DIR ${E3SM_KOKKOS_PATH}/lib64)
 endif ()
 
-SET (KOKKOS_LIBRARIES "kokkos")
+SET (KOKKOS_LIBRARIES "kokkoscore;kokkoscontainers")
 SET (KOKKOS_TPL_LIBRARIES "dl")
 
 MESSAGE (STATUS "Kokkos installation found! Here are the details:")

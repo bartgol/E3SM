@@ -151,6 +151,18 @@ struct DefaultThreadsDistribution<Hommexx_Cuda> {
                            const ThreadPreferences tp = ThreadPreferences());
 };
 
+template<typename TeamPolicy>
+typename std::enable_if<OnGpu<typename TeamPolicy::execution_space>::value,int>::type
+get_vector_length (const TeamPolicy& p) {
+  return p.vector_length();
+}
+
+template<typename TeamPolicy>
+typename std::enable_if<!OnGpu<typename TeamPolicy::execution_space>::value,int>::type
+get_vector_length (const TeamPolicy&) {
+  return 1;
+}
+
 // Return a TeamPolicy using defaults that, so far, have been good for all use
 // cases. Use of this function means you don't have to use
 // DefaultThreadsDistribution.

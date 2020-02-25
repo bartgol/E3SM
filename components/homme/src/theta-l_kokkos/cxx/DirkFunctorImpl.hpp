@@ -112,6 +112,16 @@ struct DirkFunctorImpl {
         nvec = std::min(NP*NP, nhwthr),
         nthr = nhwthr/nvec;
       m_policy = TeamPolicy(nelem, nthr, nvec);
+
+      char* team_size_str  = std::getenv("DIRK_TEAM_SIZE");
+      char* vec_length_str = std::getenv("DIRK_VECTOR_LENGTH");
+      if (team_size_str!=nullptr && vec_length_str!=nullptr) {
+        auto team_size  = std::atoi(team_size_str);
+        auto vec_length = std::atoi(vec_length_str);
+        printf ("DIRK: honoring environment request of team_size/vector_length: %d, %d\n",team_size,vec_length);
+        printf ("      Note: default values were team_size/vector_length: %d, %d\n",m_policy.team_size(),get_vector_length(m_policy));
+        m_policy = decltype(m_policy)(nelem,team_size,vec_length);
+      }
     } else {
       ThreadPreferences tp;
       tp.max_threads_usable = NUM_PHYSICAL_LEV;
@@ -122,7 +132,17 @@ struct DirkFunctorImpl {
       m_policy = TeamPolicy(nelem, p.first, 1);
     }
     nteam = std::min(nelem, get_num_concurrent_teams(m_policy));
+
     m_ig_policy = Homme::get_default_team_policy<ExecSpace>(nelem);
+    char* team_size_str  = std::getenv("DIRK_IG_TEAM_SIZE");
+    char* vec_length_str = std::getenv("DIRK_IG_VECTOR_LENGTH");
+    if (team_size_str!=nullptr && vec_length_str!=nullptr) {
+      auto team_size  = std::atoi(team_size_str);
+      auto vec_length = std::atoi(vec_length_str);
+      printf ("DIRK-IG: honoring environment request of team_size/vector_length: %d, %d\n",team_size,vec_length);
+      printf ("      Note: default values were team_size/vector_length: %d, %d\n",m_ig_policy.team_size(),get_vector_length(m_ig_policy));
+      m_ig_policy = decltype(m_ig_policy)(nelem,team_size,vec_length);
+    }
   }
 
   int requested_buffer_size () const {

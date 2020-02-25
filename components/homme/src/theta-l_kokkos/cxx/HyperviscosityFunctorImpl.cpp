@@ -32,6 +32,18 @@ HyperviscosityFunctorImpl (const SimulationParams&     params,
  , m_policy_first_laplace (Homme::get_default_team_policy<ExecSpace,TagFirstLaplaceHV>(state.num_elems()))
  , m_policy_pre_exchange (Homme::get_default_team_policy<ExecSpace, TagHyperPreExchange>(state.num_elems()))
 {
+  char* team_size_str  = std::getenv("HVF_TEAM_SIZE");
+  char* vec_length_str = std::getenv("HVF_VECTOR_LENGTH");
+  if (team_size_str!=nullptr && vec_length_str!=nullptr) {
+    auto team_size  = std::atoi(team_size_str);
+    auto vec_length = std::atoi(vec_length_str);
+    printf ("HVC: honoring env-var requested team_size/vector_length: %d, %d\n",team_size,vec_length);
+    printf ("      Note: default values were team_size/vector_length: %d, %d\n",m_policy_pre_exchange.team_size(),get_vector_length(m_policy_pre_exchange));
+    m_policy_pre_exchange = decltype(m_policy_pre_exchange)(state.num_elems(),team_size,vec_length);
+    m_policy_first_laplace = decltype(m_policy_first_laplace)(state.num_elems(),team_size,vec_length);
+    m_policy_update_states = decltype(m_policy_update_states)(state.num_elems(),team_size,vec_length);
+  }
+
   // Sanity check
   assert(params.params_set);
 

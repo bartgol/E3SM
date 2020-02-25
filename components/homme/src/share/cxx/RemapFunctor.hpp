@@ -156,6 +156,16 @@ RemapStateAndThicknessProvider<true> {
     const int num_elems = elements.m_state.num_elems();
     m_policy_pre = Homme::get_default_team_policy<ExecSpace,TagPreProcess>(iters_pre*num_elems);
     m_policy_post = Homme::get_default_team_policy<ExecSpace,TagPostProcess>(iters_post*num_elems);
+    char* team_size_str  = std::getenv("VRF_TEAM_SIZE");
+    char* vec_length_str = std::getenv("VRF_VECTOR_LENGTH");
+    if (team_size_str!=nullptr && vec_length_str!=nullptr) {
+      auto team_size  = std::atoi(team_size_str);
+      auto vec_length = std::atoi(vec_length_str);
+      printf ("VRF: honoring env-var requested team_size/vector_length: %d, %d\n",team_size,vec_length);
+      printf ("     Note: default values were team_size/vector_length: %d, %d\n",m_policy_pre.team_size(),get_vector_length(m_policy_pre));
+      m_policy_pre  = decltype(m_policy_pre)(iters_pre*num_elems,team_size,vec_length);
+      m_policy_post = decltype(m_policy_post)(iters_post*num_elems,team_size,vec_length);
+    }
   }
 
   KOKKOS_INLINE_FUNCTION
@@ -178,7 +188,7 @@ RemapStateAndThicknessProvider<true> {
     if (m_state_provider.num_states_preprocess()>0) {
       m_np1 = np1;
       Kokkos::parallel_for("Pre-process states",m_policy_pre,*this);
-      ExecSpace::fence();
+      ExecSpace().fence();
     }
   }
 
@@ -196,7 +206,7 @@ RemapStateAndThicknessProvider<true> {
     if (m_state_provider.num_states_postprocess()>0) {
       m_np1 = np1;
       Kokkos::parallel_for("Post-process states",m_policy_post,*this);
-      ExecSpace::fence();
+      ExecSpace().fence();
     }
   }
 
@@ -464,8 +474,22 @@ private:
   remap_team_policy(int num_exec) {
     constexpr int num_threads = 16;
     constexpr int num_vectors = 32;
-    return Kokkos::TeamPolicy<ExecSpace, FunctorTag>(num_exec, num_threads,
+    auto p = Kokkos::TeamPolicy<ExecSpace, FunctorTag>(num_exec, num_threads,
                                                      num_vectors);
+    char* team_size_str  = std::getenv("VRF_TEAM_SIZE");
+    char* vec_length_str = std::getenv("VRF_VECTOR_LENGTH");
+    if (team_size_str!=nullptr && vec_length_str!=nullptr) {
+      auto team_size  = std::atoi(team_size_str);
+      auto vec_length = std::atoi(vec_length_str);
+      static bool printed = false;
+      if (printed==false) {
+        printf ("VRF: honoring env-var requested team_size/vector_length: %d, %d\n",team_size,vec_length);
+        printf ("     Note: default values were team_size/vector_length: %d, %d\n",p.team_size(),get_vector_length(p));
+        printed = true;
+      }
+      p  = decltype(p)(num_exec,team_size,vec_length);
+    }
+    return p;
   }
 
   template <typename FunctorTag>
@@ -475,7 +499,7 @@ private:
     GPTLstart(functor_name.c_str());
     profiling_resume();
     Kokkos::parallel_for("vertical remap", policy, *this);
-    ExecSpace::fence();
+    ExecSpace().fence();
     profiling_pause();
     GPTLstop(functor_name.c_str());
   }

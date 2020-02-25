@@ -251,7 +251,7 @@ public:
 
     }
 
-    ExecSpace::fence();
+    ExecSpace().fence();
     profiling_pause();
   }
 
@@ -268,7 +268,7 @@ public:
                              m_geometry.num_elems() * m_data.qsize),
                          *this);
     }
-    ExecSpace::fence();
+    ExecSpace().fence();
     profiling_pause();
   }
 
@@ -356,18 +356,32 @@ public:
   struct AALTracerPhase {};
 
   void advect_and_limit() {
+    auto p_setup   = Homme::get_default_team_policy<ExecSpace, AALSetupPhase>(m_geometry.num_elems());
+    auto p_tracers = Homme::get_default_team_policy<ExecSpace, AALTracerPhase>(m_geometry.num_elems()*m_data.qsize);
+
+    char* team_size_str  = std::getenv("ESF_AAL_TEAM_SIZE");
+    char* vec_length_str = std::getenv("ESF_AAL_VECTOR_LENGTH");
+    if (team_size_str!=nullptr && vec_length_str!=nullptr) {
+      auto team_size  = std::atoi(team_size_str);
+      auto vec_length = std::atoi(vec_length_str);
+      printf ("VRF: honoring env-var requested team_size/vector_length: %d, %d\n",team_size,vec_length);
+      printf ("     Note: default values were team_size/vector_length: %d, %d\n",p_setup.team_size(),get_vector_length(p_setup));
+      p_setup   = decltype(p_setup)(p_setup.league_size(),team_size,vec_length);
+      p_tracers = decltype(p_tracers)(p_tracers.league_size(),team_size,vec_length);
+    }
+
     profiling_resume();
-    Kokkos::parallel_for(
-      Homme::get_default_team_policy<ExecSpace, AALSetupPhase>(
-        m_geometry.num_elems()),
-      *this);
-    ExecSpace::fence();
+    GPTLstart("esf_aal");
+
+    Kokkos::parallel_for(p_setup, *this);
+    ExecSpace().fence();
+
     m_kernel_will_run_limiters = true;
-    Kokkos::parallel_for(
-      Homme::get_default_team_policy<ExecSpace, AALTracerPhase>(
-        m_geometry.num_elems() * m_data.qsize),
-      *this);
-    ExecSpace::fence();
+
+    Kokkos::parallel_for(p_tracers,*this);
+    ExecSpace().fence();
+
+    GPTLstop("esf_aal");
     m_kernel_will_run_limiters = false;
     profiling_pause();
   }
@@ -395,7 +409,7 @@ public:
             m_geometry.num_elems()),
         *this);
 
-    ExecSpace::fence();
+    ExecSpace().fence();
     profiling_pause();
   }
 
@@ -521,7 +535,7 @@ public:
               });
           }
       });
-    ExecSpace::fence();
+    ExecSpace().fence();
   }
 
   void neighbor_minmax_start() {

@@ -66,7 +66,9 @@ public:
                          [&](const int ilev) {
 #ifndef NDEBUG
       // check inputs
-      const int vec_len = (ilev==(NUM_LEV-1)) ? ColInfo<NUM_PHYSICAL_LEV>::LastPackLen : VECTOR_SIZE;
+      const int vec_len = (ilev==(NUM_LEV-1))
+                           ? ColInfo<NUM_PHYSICAL_LEV>::LastPackLen
+                           : VECTOR_SIZE;
       for (int iv=0; iv<vec_len; ++iv) {
         if (vtheta_dp(ilev)[iv]<0.0) {
           Kokkos::abort("Error! vtheta_dp>0 detected.\n");
@@ -221,7 +223,9 @@ public:
                       const ExecViewUnmanaged<      Scalar [NUM_LEV_P]>& phi_i) const
   {
     // Init phi on surface with phis
-    phi_i(LAST_INT_PACK)[LAST_INT_PACK_END] = phis;
+    Kokkos::single(Kokkos::PerThread(kv.team),[&](){
+      phi_i(LAST_INT_PACK)[LAST_INT_PACK_END] = phis;
+    });
 
     // Use ColumnOps to do the scan sum
     auto integrand_provider = [&](const int ilev)->Scalar {
