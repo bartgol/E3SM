@@ -14,6 +14,7 @@
 #include "FunctorsBuffersManager.hpp"
 #include "HybridVCoord.hpp"
 #include "KernelVariables.hpp"
+#include "MultiElemKernelVariables.hpp"
 #include "ReferenceElement.hpp"
 #include "RKStageData.hpp"
 #include "SimulationParams.hpp"
@@ -36,6 +37,7 @@ struct Tracers;
 
 struct CaarFunctorImpl {
 
+  static constexpr int NUM_IE = MultiElemKernelVariables::NUM_IE;
   struct Buffers {
     static constexpr int num_3d_scalar_mid_buf = 10;
     static constexpr int num_3d_vector_mid_buf =  3;
@@ -134,7 +136,7 @@ struct CaarFunctorImpl {
       , m_geometry(elements.m_geometry)
       , m_deriv(ref_FE.get_deriv())
       , m_sphere_ops(sphere_ops)
-      , m_policy_pre (Homme::get_default_team_policy<ExecSpace,TagPreExchange>(elements.num_elems()))
+      , m_policy_pre (Homme::get_default_team_policy<ExecSpace,TagPreExchange>(elements.num_elems()/NUM_IE))
       , m_policy_post (0,elements.num_elems()*NP*NP)
       , m_policy_dp3d_lim (Homme::get_default_team_policy<ExecSpace,TagDp3dLimiter>(elements.num_elems()))
   {
@@ -147,7 +149,7 @@ struct CaarFunctorImpl {
 
   int requested_buffer_size () const {
     // Ask the buffers manager to allocate enough buffers to satisfy Caar's needs
-    const int nteams = get_num_concurrent_teams(m_policy_pre);
+    const int nteams = get_num_concurrent_teams(m_policy_pre) * MultiElemKernelVariables::NUM_IE;
 
     int num_scalar_mid_buf = Buffers::num_3d_scalar_mid_buf;
     int num_scalar_int_buf = Buffers::num_3d_scalar_int_buf;
@@ -183,7 +185,7 @@ struct CaarFunctorImpl {
     Errors::runtime_check(fbm.allocated_size()>=requested_buffer_size(), "Error! Buffers size not sufficient.\n");
 
     Scalar* mem = reinterpret_cast<Scalar*>(fbm.get_memory());
-    const int nteams = get_num_concurrent_teams(m_policy_pre);
+    const int nteams = get_num_concurrent_teams(m_policy_pre) * MultiElemKernelVariables::NUM_IE;
 
     // Midpoints scalars
     m_buffers.pnh        = decltype(m_buffers.pnh       )(mem,nteams);
@@ -333,7 +335,7 @@ struct CaarFunctorImpl {
     // In this body, we use '====' to separate sync epochs (delimited by barriers)
     // Note: make sure the same temp is not used within each epoch!
 
-    KernelVariables kv(team);
+    MultiElemKernelVariables kv(team);
 
     // =========== EPOCH 1 =========== //
     compute_div_vdp(kv);
@@ -456,10 +458,10 @@ struct CaarFunctorImpl {
     constexpr Real dp3d_thresh = 0.125;
     constexpr Real vtheta_thresh = 10; // Kelvin
 
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP; 
-      const int jgp = idx % NP;
+      const int igp = (idx / NP) % NP; 
+      const int jgp =  idx % NP;
 
       const auto& spheremp = m_geometry.m_spheremp(kv.ie,igp,jgp);
 
@@ -541,11 +543,11 @@ struct CaarFunctorImpl {
   }
 
   KOKKOS_INLINE_FUNCTION
-  void compute_div_vdp(KernelVariables &kv) const {
+  void compute_div_vdp(MultiElemKernelVariables &kv) const {
     // Compute vdp
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team, NP * NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP; 
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP; 
 
       auto u = Homme::subview(m_state.m_v,kv.ie,m_data.n0,0,igp,jgp);
@@ -570,9 +572,9 @@ struct CaarFunctorImpl {
   KOKKOS_INLINE_FUNCTION
   void compute_scan_quantities (KernelVariables &kv) const {
     kv.team_barrier();
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP; 
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP;
 
       // At interfaces, pi_i(k+1) = pi_i(k)+dp(k), with pi_i(0)=hyai(0)*ps0;
@@ -620,9 +622,9 @@ struct CaarFunctorImpl {
     kv.team_barrier();
 
     // Update omega with v*grad(p)
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP; 
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP;
 
       auto omega = Homme::subview(m_buffers.omega_p,kv.team_idx,igp,jgp);
@@ -662,9 +664,9 @@ struct CaarFunctorImpl {
 
   KOKKOS_INLINE_FUNCTION
   void compute_interface_quantities(KernelVariables &kv) const {
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP; 
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP; 
 
       auto dp   = Homme::subview(m_state.m_dp3d,kv.ie,m_data.n0,igp,jgp);
@@ -729,9 +731,9 @@ struct CaarFunctorImpl {
     //  - theta_vadv
     //  - phi_vadv_i
     //  - w_vadv_i
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP; 
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP;
 
       compute_eta_dot_dpn (kv,igp,jgp);
@@ -864,9 +866,9 @@ struct CaarFunctorImpl {
     // Accmuulate: dereived.omega_p += eta_ave_w*omega
     // Accmuulate: dereived.eta_dot_dpdn += eta_ave_w*eta_dot_dpdn
     // Accumulate: vn0 += eta_ave_w*v*dp
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP; 
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP;
 
       // If rsplit>0, m_buffers.eta_dot_dpdn is identically 0, so skip this step
@@ -912,9 +914,9 @@ struct CaarFunctorImpl {
     kv.team_barrier();
 
     auto v_i = Homme::subview(m_buffers.v_i,kv.team_idx);
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP;
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP;
 
       auto w_tens = Homme::subview(m_buffers.w_tens,kv.team_idx,igp,jgp);
@@ -967,9 +969,9 @@ struct CaarFunctorImpl {
     // Update w_i(np1) = spheremp*(scale3*w_i(nm1) + dt*w_tens)
     // Update phi_i(np1) = spheremp*(scale3*phi_i(nm1) + dt*phi_tens)
 
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP;
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP;
 
       auto spheremp = m_geometry.m_spheremp(kv.ie,igp,jgp);
@@ -1056,9 +1058,9 @@ struct CaarFunctorImpl {
     }
     kv.team_barrier();
 
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP;
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP;
 
       auto dp_tens = Homme::subview(m_buffers.dp_tens,kv.team_idx,igp,jgp);
@@ -1103,9 +1105,9 @@ struct CaarFunctorImpl {
     // Update dp3d(np1) = spheremp*(scale3*dp3d(nm1) + dt*dp_tens)
     // Update vtheta_dp(np1) = spheremp*(scale3*vtheta_dp(nm1) + dt*theta_tens)
 
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP;
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP;
 
       const auto& spheremp = m_geometry.m_spheremp(kv.ie,igp,jgp);
@@ -1160,9 +1162,9 @@ struct CaarFunctorImpl {
       kv.team_barrier();
     } else {
       // Compute average(w^2/2)
-      Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+      Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                            [&](const int idx) {
-        const int igp = idx / NP;
+        const int igp = (idx / NP) % NP; 
         const int jgp = idx % NP;
         auto w_i = Homme::subview(m_state.m_w_i,kv.ie,m_data.n0,igp,jgp);
 
@@ -1187,9 +1189,9 @@ struct CaarFunctorImpl {
     }
 
     // Scalar w_vor,mgrad,w_gradw,gradw2;
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP;
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP;
 
       auto wvor_x = Homme::subview(wvor,0,igp,jgp);
@@ -1267,9 +1269,9 @@ struct CaarFunctorImpl {
                                      grad_exner);
     kv.team_barrier();
 
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP;
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP;
 
       // Assemble vtens (both components)
@@ -1307,9 +1309,9 @@ struct CaarFunctorImpl {
 
     auto v_tens = Homme::subview(m_buffers.v_tens,kv.team_idx);
 
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NP*NP),
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(kv.team,NUM_IE*NP*NP),
                          [&](const int idx) {
-      const int igp = idx / NP;
+      const int igp = (idx / NP) % NP; 
       const int jgp = idx % NP;
 
       const auto& spheremp = m_geometry.m_spheremp(kv.ie,igp,jgp);

@@ -106,7 +106,7 @@ public:
   }
 
   int ie, iq;
-  const int team_idx;
+  int team_idx;
 }; // KernelVariables
 
 } // Homme
