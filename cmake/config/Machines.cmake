@@ -1,0 +1,3 @@
+set (MACHINES
+  linux-generic
+)
