@@ -1,0 +1,11 @@
+include (build_scripts/BuildCsmShare)
+include (build_scripts/BuildGptl)
+include (build_scripts/BuildMct)
+include (build_scripts/BuildScorpio)
+
+macro (BuildSharedLibs)
+  BuildGptl ()
+  BuildScorpio ()
+  BuildMct ()
+  BuildCsmShare ()
+endmacro()

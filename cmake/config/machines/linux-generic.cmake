@@ -5,7 +5,7 @@ set (linux-generic_COMPILERS
 # For each compiler, define macro ${MACHINE}-${COMPILER}.
 # The macro should set compiler name, as well as machine-specific
 # flags for this compiler
-macro (linux-generic-gnu)
+macro (linux_generic_gnu)
 
   # Find gcc, g++, gfortran, mpicc, mpicxx, mpifort
   find_program (SCC  gcc)
@@ -19,10 +19,10 @@ macro (linux-generic-gnu)
 endmacro()
 
 macro (SetMachineCompilers COMPILER)
-  string(TOUPPER COMPILER COMPILER_CI)
+  string(TOUPPER "${COMPILER}" COMPILER_CI)
   
   if ("${COMPILER_CI}" STREQUAL "GNU")
-    linux-generic-gnu()
+    linux_generic_gnu()
   else ()
     message (FATAL_ERROR
              "Error! Unrecognized compiler '${COMPILER}'.\n"

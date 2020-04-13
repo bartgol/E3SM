@@ -1,0 +1,68 @@
+diff --git a/cime/scripts/lib/CIME/build.py b/cime/scripts/lib/CIME/build.py
+index f264c0638..47576f203 100644
+--- a/cime/scripts/lib/CIME/build.py
++++ b/cime/scripts/lib/CIME/build.py
+@@ -321,6 +321,7 @@ ERROR MPILIB is mpi-serial and USE_ESMF_LIB IS TRUE
+ def _build_libraries(case, exeroot, sharedpath, caseroot, cimeroot, libroot, lid, compiler, buildlist, comp_interface):
+ ###############################################################################
+ 
++    logger.info("BUILDING LIBRARIES YO!")
+     shared_lib = os.path.join(exeroot, sharedpath, "lib")
+     shared_inc = os.path.join(exeroot, sharedpath, "include")
+     for shared_item in [shared_lib, shared_inc]:
+diff --git a/cime/src/build_scripts/buildlib.csm_share b/cime/src/build_scripts/buildlib.csm_share
+index 567727352..7a7457cc2 100755
+--- a/cime/src/build_scripts/buildlib.csm_share
++++ b/cime/src/build_scripts/buildlib.csm_share
+@@ -1,6 +1,9 @@
+ #!/usr/bin/env python
+ from standard_script_setup import *
+ from CIME.utils import copyifnewer, run_bld_cmd_ensure_logging, expect
++################################
++from CIME.utils import run_cmd
++################################
+ from CIME.case import Case
+ from CIME.build import get_standard_makefile_args
+ import glob
+@@ -44,6 +47,7 @@ formatter_class=argparse.ArgumentDefaultsHelpFormatter
+ 
+ def buildlib(bldroot, installpath, case):
+ ###############################################################################
++    expect (1<0,"ARG")
+     gmake_args = get_standard_makefile_args(case, shared_lib=True)
+     comp_interface = case.get_value("COMP_INTERFACE")
+     cimeroot = case.get_value("CIMEROOT")
+@@ -115,6 +119,10 @@ def buildlib(bldroot, installpath, case):
+     for _file in glob.iglob(os.path.join(cimeroot,"src","share","RandNum","include","*")):
+         copyifnewer(_file, os.path.join(installdir, "include", os.path.basename(_file)))
+ 
++    ##################
++    ls_stat, ls_out = run_cmd("ls {}".format(os.path.join(installdir,"include")))
++    print ("ls include: {}".format(ls_out)
++    ##################
+     # This runs the make command
+     gmake_opts = "-f {}/Makefile complib MODEL=csm_share COMP_NAME=csm_share ".format(os.path.join(caseroot,"Tools"))
+     gmake_opts += "-j {} ".format(case.get_value("GMAKE_J"))
+diff --git a/cime/src/drivers/mct/main/CMakeLists.txt b/cime/src/drivers/mct/main/CMakeLists.txt
+index d18de153e..98ce91bf0 100644
+--- a/cime/src/drivers/mct/main/CMakeLists.txt
++++ b/cime/src/drivers/mct/main/CMakeLists.txt
+@@ -1,9 +1,10 @@
+-list(APPEND drv_sources
+-  component_type_mod.F90
+-  map_glc2lnd_mod.F90
+-  map_lnd2rof_irrig_mod.F90
+-  seq_map_mod.F90
+-  seq_map_type_mod.F90
+-  )
++set(drv_sources
++  cime_driver.F90
++  # component_type_mod.F90
++  # map_glc2lnd_mod.F90
++  # map_lnd2rof_irrig_mod.F90
++  # seq_map_mod.F90
++  # seq_map_type_mod.F90
++)
+ 
+-sourcelist_to_parent(drv_sources)
++add_executable (${E3SM_EXE_NAME} ${drv_sources})

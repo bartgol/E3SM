@@ -7,3 +7,6 @@ set (COMPSETS_SHORT_NAMES
 
 set (COMPSETS_LONG_NAMES
 )
+
+macro (ValidateResolution COMPSET RESOLUTION)
+endmacro()

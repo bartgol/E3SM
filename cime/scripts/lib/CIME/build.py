@@ -321,6 +321,7 @@ ERROR MPILIB is mpi-serial and USE_ESMF_LIB IS TRUE
 def _build_libraries(case, exeroot, sharedpath, caseroot, cimeroot, libroot, lid, compiler, buildlist, comp_interface):
 ###############################################################################
 
+    logger.info("BUILDING LIBRARIES YO!")
     shared_lib = os.path.join(exeroot, sharedpath, "lib")
     shared_inc = os.path.join(exeroot, sharedpath, "include")
     for shared_item in [shared_lib, shared_inc]:

@@ -1,6 +1,8 @@
-include (config/Compsets.cmake)
+include (config/Compsets)
+include (config/Resolutions)
+include (config/Machines)
 
-function (CheckUserInputs CASEROOT COMPSET RESOLUTION MACHINE)
+function (CheckUserInputs CASEROOT COMPSET RESOLUTION MACHINE COMPILER)
 
   # Check that the user specified the basic inputs,
   # and that these inputs are in the list of valid inputs
@@ -17,14 +19,16 @@ function (CheckUserInputs CASEROOT COMPSET RESOLUTION MACHINE)
   elseif (${COMPSET} IN_LIST COMPSETS_LONG_NAMES)
   else ()
     message (FATAL_ERROR "Error! Compset '${COMPSET}' was not found in the list of valid compsets.\n"
-                         "       For a list of valid compsets, see ${CMAKE_SOURCE_DIR}/cmake/config/Compsets.cmake")
+                         "A list of valid compsets can be found in\n  ${CMAKE_SOURCE_DIR}/cmake/config/Compsets.cmake\n")
   endif()
 
   if ("${RESOLUTION}" STREQUAL "")
     message (FATAL_ERROR "Error! You must specify a resolution.")
   elseif(NOT ${RESOLUTION} IN_LIST RESOLUTIONS)
+    message ("valid res: ${RESOLUTIONS}")
     message (FATAL_ERROR "Error! Resolution '${RESOLUTION}' was not found in the list of valid resolutions.\n"
                          "       For a list of valid resolutions, see ${CMAKE_SOURCE_DIR}/cmake/config/Resolutions.cmake")
+
   else ()
     # Check resolution is supported by this compset
     ValidateResolution (${COMPSET} ${RESOLUTION})
@@ -38,9 +42,9 @@ function (CheckUserInputs CASEROOT COMPSET RESOLUTION MACHINE)
   endif()
 
   if (NOT "${COMPILER}" STREQUAL "")
-    include (config/machines/${MACHINE}.cmake)
+    include (config/machines/${MACHINE})
     if (NOT ${COMPILER} IN_LIST ${MACHINE}_COMPILERS)
-      message (FATAL_ERROR "Error! Compiler '${COMPILER}' in the list of compilers supported on machine '${MACHINE}'.\n"
+      message (FATAL_ERROR "Error! Compiler '${COMPILER}' not found in the list of compilers supported on machine '${MACHINE}'.\n"
                            "       For a list of valid compilers for this machine, see ${CMAKE_SOURCE_DIR}/cmake/config/machines/${MACHINE}.cmake")
     endif()
   endif()

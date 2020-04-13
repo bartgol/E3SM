@@ -1,6 +1,6 @@
 macro (SetCompilers MACHINE COMPILER)
 
-  include (config/machines/${MACHINE}.cmake)
+  include (config/machines/${MACHINE})
 
   if ("${COMPILER}" STREQUAL "")
     # Set the default compiler for this machine
@@ -8,7 +8,7 @@ macro (SetCompilers MACHINE COMPILER)
   endif()
 
   # Grab basic compiler flags
-  include (config/compilers/${COMPILER}.cmake)
+  include (config/compilers/${COMPILER})
 
   # Each machine file should have a macro that receives the compiler name
   # as argument, and sets SCC, SCXX, SFC (the scalar C,CXX,Fortran compilers)
