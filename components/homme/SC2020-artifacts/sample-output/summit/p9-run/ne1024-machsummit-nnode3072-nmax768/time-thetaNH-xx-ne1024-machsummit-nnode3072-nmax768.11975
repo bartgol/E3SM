@@ -1,0 +1,202 @@
+#!/bin/bash -f
+#BSUB -P cli115
+#BSUB -nnodes 3072
+#BSUB -W 02:00  # who knows how much....
+#BSUB -J 1024e3072 # format to shrink job name
+#BSUB -e bsub-ne1024-machsummit-nnode3072-nmax768.%J # do not use custom output file?
+#BSUB -o bsub-ne1024-machsummit-nnode3072-nmax768.%J
+#BSUB -alloc_flags smt4
+
+######################## GPU
+
+
+wdir=`pwd`
+echo "PAMI vars before interventions"
+source ${wdir}/../../load-modules-p9
+module list
+
+echo "PAMI vars after interventions"
+env | grep PAMI 
+
+xxdir=${wdir}/../../bldxx-p9-omp/test_execs/
+
+who=theta-nlev128-kokkos
+exexx=${xxdir}/${who}/${who}
+who=theta-nlev128
+exeff=${xxdir}/${who}/${who}
+
+export OMP_PLACES=threads
+export OMP_PROC_BIND=close
+export OMP_NUM_THREADS=4
+
+
+#THETA NH
+#xx run
+jsrun -n 18432 -r 6 -l cpu-cpu \
+     -b packed:1 -d plane:1 \
+     -a7 \
+     -c7 \
+     -g0 \
+     $exexx \
+     < xxinputNH.nl |& grep -v "IEEE_UNDERFLOW_FLAG"
+
+ff=time-thetaNH-xx-ne1024-machsummit-nnode3072-nmax768.${LSB_JOBID}
+
+cp job.sh $ff
+echo " " >> $ff
+cat xxinputNH.nl >> $ff
+echo " " >> $ff
+grep define ${xxdir}/../../kokkos/build/KokkosCore_config.h >> $ff
+grep COMMIT ${xxdir}/../../CMakeCache.txt >> $ff
+grep HOMME ${xxdir}/../../CMakeCache.txt >> $ff
+echo " " >> $ff
+echo ' job id is ${LSB_JOBID}' >> $ff
+head -n 50 HommeTime_stats >> $ff
+
+rm HommeTime_stats
+
+
+
+#THETA NH
+#ff run
+jsrun -n 18432 -r 6 -l cpu-cpu \
+     -b packed:1 -d plane:1 \
+     -a7 \
+     -c7 \
+     -g0 \
+     $exeff \
+     < ffinputNH.nl |& grep -v "IEEE_UNDERFLOW_FLAG"
+
+ff=time-thetaNH-ff-ne1024-machsummit-nnode3072-nmax768.${LSB_JOBID}
+
+cp job.sh $ff
+echo " " >> $ff
+cat xxinputHY.nl >> $ff
+echo " " >> $ff
+grep COMMIT ${xxdir}/../../CMakeCache.txt >> $ff
+grep HOMME ${xxdir}/../../CMakeCache.txt >> $ff
+echo " " >> $ff
+echo ' job id is ${LSB_JOBID}' >> $ff
+head -n 50 HommeTime_stats >> $ff
+
+rm HommeTime_stats
+
+
+
+
+
+
+ 
+&ctl_nl
+NThreads=1
+partmethod    = 4
+topology      = "cube"
+test_case     = "jw_baroclinic"
+u_perturb = 1
+rotate_grid = 0
+ne=1024
+qsize = 10
+nmax=768
+statefreq=99999999
+disable_diagnostics = .true.
+restartfreq   = 999999999
+restartfile   = "./R0001"
+runtype       = 0
+mesh_file='/dev/null'
+tstep=10      ! ne30: 300  ne120: 75
+rsplit=2       ! ne30: 3   ne120:  2
+qsplit = 1
+tstep_type = 10
+integration   = "explicit"
+nu    =2.5e10 
+nu_div=2.5e10
+nu_p  =2.5e10
+nu_q  =2.5e10
+nu_s  =2.5e10
+nu_top = 0
+se_ftype     = 0
+limiter_option = 9
+vert_remap_q_alg = 1
+hypervis_scaling=0
+hypervis_order = 2
+hypervis_subcycle=1    ! ne30: 3  ne120: 4
+theta_hydrostatic_mode=.false.
+theta_advect_form=1
+hypervis_subcycle_tom  = 0
+/
+
+&vert_nl
+vform         = "ccm"
+vfile_mid = './sabm-128.ascii'
+vfile_int = './sabi-128.ascii'
+/
+
+&prof_inparm
+profile_outpe_num = 100
+profile_single_file		= .true.
+/
+
+&analysis_nl
+! disabled
+ output_timeunits=1,1
+ output_frequency=0,0
+ output_start_time=0,0
+ output_end_time=30000,30000
+ output_varnames1='ps','zeta','T','geo'
+ output_varnames2='Q','Q2','Q3','Q4','Q5'
+ io_stride=8
+ output_type = 'netcdf' 
+/
+
+ 
+ 
+ job id is ${LSB_JOBID}
+
+***** GLOBAL STATISTICS (129024 MPI TASKS) *****
+
+$Id: gptl.c,v 1.157 2011-03-28 20:55:18 rosinski Exp $
+'count' is cumulative. All other stats are max/min
+'on' indicates whether the timer was active during output, and so stats are lower or upper bounds.
+
+name                                 on  processes  threads        count      walltotal   wallmax (proc   thrd  )   wallmin (proc   thrd  )
+"Total"                               -     129024   129024 1.290240e+05   4.388155e+07   340.574 ( 19668      0)   339.537 (126344      0)
+"prim_init1"                          -     129024   129024 1.290240e+05   2.998903e+04     0.441 (     0      0)     0.211 ( 30697      0)
+"PartitioningTime"                    -     129024   129024 1.290240e+05   4.131029e-02     0.000 (122701      0)     0.000 ( 28388      0)
+"repro_sum_int"                       -     129024   129024 1.935360e+06   3.125882e+05     7.911 (  7469      0)     0.005 ( 57631      0)
+"prim_init2"                          -     129024   129024 1.290240e+05   3.541571e+05     8.285 ( 56097      0)     0.283 (128315      0)
+"prim_printstate"                     -     129024   129024 1.290240e+05   4.841092e+03     0.038 (     0      0)     0.037 (123112      0)
+"prim_io_init"                        -     129024   129024 1.290240e+05   1.792881e-01     0.000 (   333      0)     0.000 ( 66892      0)
+"prim_main_loop"                      -     129024   129024 1.290240e+05   4.238593e+07   328.997 ( 19988      0)   327.923 (126361      0)
+"prim_run"                            -     129024   129024 4.954522e+07   4.238559e+07   328.996 ( 51312      0)   327.920 (126361      0)
+"tl-sc prim_run_subcycle_c"           -     129024   129024 4.954522e+07   4.238403e+07   328.988 ( 51312      0)   327.906 (126565      0)
+"tl-sc dp3d-from-ps"                  -     129024   129024 4.954522e+07   1.120968e+04     0.218 ( 94077      0)     0.061 (118130      0)
+"tl-sc prim_step-loop"                -     129024   129024 4.954522e+07   4.002593e+07   312.542 (121418      0)   306.928 ( 83704      0)
+"tl-s prim_step"                      -     129024   129024 9.909043e+07   4.002546e+07   312.537 (121418      0)   306.923 ( 83704      0)
+"tl-s deep_copy+derived_dp"           -     129024   129024 9.909043e+07   5.938887e+04     1.122 ( 18810      0)     0.330 (120194      0)
+"tl-s prim_advance_exp-loop"          -     129024   129024 9.909043e+07   2.735809e+07   229.010 ( 20182      0)   195.779 (119398      0)
+"tl-ae prim_advance_exp"              -     129024   129024 9.909043e+07   2.735756e+07   229.008 ( 20182      0)   195.773 (119398      0)
+"IMEX_KG255"                          -     129024   129024 9.909043e+07   2.414849e+07   208.643 ( 19715      0)   171.765 (126131      0)
+"caar compute"                        -     129024   129024 9.909043e+08   9.038762e+06    79.237 (113979      0)    63.212 (121418      0)
+"caar_bexchV"                         -     129024   129024 4.954522e+08   3.477830e+06    52.121 (126149      0)    10.881 ( 50268      0)
+"caar dp3d"                           -     129024   129024 4.954522e+08   1.548509e+05     2.085 ( 12828      0)     1.026 (128705      0)
+"compute_stage_value_dirk"            -     129024   129024 4.954522e+08   1.145505e+07   119.012 ( 50247      0)    78.139 (121418      0)
+"tl-ae advance_hypervis_dp"           -     129024   129024 9.909043e+07   3.192434e+06    41.309 (117980      0)    18.575 ( 19672      0)
+"hvf-bhwk"                            -     129024   129024 9.909043e+07   2.180333e+06    30.125 (126131      0)    13.092 (125170      0)
+"hvf-bexch"                           -     129024   129024 1.981809e+08   1.320692e+06    28.367 (117980      0)     3.503 ( 50247      0)
+"tl-s prim_advec_tracers_remap"       -     129024   129024 9.909043e+07   1.259765e+07   114.863 (119402      0)    81.710 ( 20182      0)
+"tl-at prim_advec_tracers_remap_RK2"  -     129024   129024 9.909043e+07   1.259292e+07   114.816 (119402      0)    81.689 ( 20182      0)
+"tl-at precompute_divdp"              -     129024   129024 9.909043e+07   4.834955e+04     0.494 ( 18750      0)     0.312 (111488      0)
+"tl-at esf-0"                         -     129024   129024 9.909043e+07   3.230415e+06    41.218 (117968      0)    18.935 ( 20135      0)
+"eus_bexch"                           -     129024   129024 2.972713e+08   2.454663e+06    38.967 (126241      0)     9.070 ( 65183      0)
+"tl-at esf-1"                         -     129024   129024 9.909043e+07   2.497477e+06    31.215 (125059      0)    15.770 (112074      0)
+"tl-at esf-2"                         -     129024   129024 9.909043e+07   6.608195e+06    66.522 (119305      0)    43.215 ( 21209      0)
+"tl-at qdp_time_avg"                  -     129024   129024 9.909043e+07   1.975866e+05     2.079 ( 51678      0)     1.392 (115016      0)
+"tl-sc vertical_remap"                -     129024   129024 4.954522e+07   2.342867e+06    21.284 ( 15492      0)    15.744 (121418      0)
+"Remap Thickness Functor"             -     129024   129024 4.954522e+07   2.629621e+04     0.234 ( 28692      0)     0.177 (112459      0)
+"Remap Scale States Functor"          -     129024   129024 4.954522e+07   8.360562e+03     0.101 ( 36732      0)     0.046 (110831      0)
+"Remap Compute Grids Functor"         -     129024   129024 4.954522e+07   1.515310e+05     1.528 ( 46460      0)     1.049 (121418      0)
+"Remap Compute Remap Functor"         -     129024   129024 4.954522e+07   1.532079e+06    13.742 ( 15492      0)    10.506 (121418      0)
+"Remap Rescale States Functor"        -     129024   129024 4.954522e+07   2.017902e+04     0.182 ( 88569      0)     0.137 (102986      0)
+"push_to_f90"                         -     129024   129024 1.290240e+05   1.064530e+03     0.020 (124428      0)     0.005 ( 10907      0)
+"t_prf"                               y          0        0 0.000000e+00   0.000000e+00     0.000 (     0      0)     0.000 (     0      0)
+

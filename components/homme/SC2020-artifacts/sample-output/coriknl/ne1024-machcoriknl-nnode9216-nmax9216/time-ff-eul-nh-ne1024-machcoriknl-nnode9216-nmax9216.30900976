@@ -1,0 +1,225 @@
+#!/bin/bash -f
+#SBATCH --account=e3sm
+#SBATCH -p regular # NOTE for debug que chaining (script to submit a script) is not allowed
+#SBATCH --error=slurm-ne1024-machcoriknl-nnode9216-nmax9216.%j # do not use custom output file?
+#SBATCH --output=slurm-ne1024-machcoriknl-nnode9216-nmax9216.%j
+#SBATCH --nodes=9216
+#SBATCH -C knl
+#SBATCH -t 00:120:00  # who knows how much....
+#SBATCH --job-name=1024k9216 # format to shrink job name
+
+
+wdir=`pwd`
+
+xxdir=${wdir}/../../bldxx/test_execs
+exexx=${xxdir}/theta-nlev128-kokkos/theta-nlev128-kokkos
+exeff=${xxdir}/theta-nlev128/theta-nlev128
+
+
+export OMP_NUM_THREADS=2
+export KMP_AFFINITY=balanced
+export OMP_STACKSIZE=16M
+
+
+#ff SL run
+nname=ff-sl-nh
+nnl=${nname}.nl
+srun -N 9216 \
+     -n 589824 \
+     -c 4 \
+     --cpu_bind=cores \
+     $exeff \
+     < $nnl |& grep -v "KMP_AFFINITY:"
+     #|& grep -v "IEEE_UNDERFLOW_FLAG"
+
+ff=time-${nname}-ne1024-machcoriknl-nnode9216-nmax9216.${SLURM_JOB_ID}
+
+cp job.sh $ff
+echo " " >> $ff
+cat $nnl >> $ff
+echo " " >> $ff
+#grep define ${xxdir}/../kokkos/build/KokkosCore_config.h >> $ff
+#grep COMMIT ${xxdir}/../CMakeCache.txt >> $ff
+#grep HOMME ${xxdir}/../CMakeCache.txt >> $ff
+echo " " >> $ff
+echo " job id is ${SLURM_JOB_ID}" >> $ff
+head -n 50 HommeTime_stats >> $ff
+
+rm HommeTime_stats
+
+
+
+#ff EUL run
+nname=ff-eul-nh
+nnl=${nname}.nl
+srun -N 9216 \
+     -n 589824 \
+     -c 4 \
+     --cpu_bind=cores \
+     $exeff \
+     < $nnl |& grep -v "KMP_AFFINITY:"
+     #|& grep -v "IEEE_UNDERFLOW_FLAG"
+
+ff=time-${nname}-ne1024-machcoriknl-nnode9216-nmax9216.${SLURM_JOB_ID}
+
+cp job.sh $ff
+echo " " >> $ff
+cat $nnl >> $ff
+echo " " >> $ff
+#grep define ${xxdir}/../kokkos/build/KokkosCore_config.h >> $ff
+#grep COMMIT ${xxdir}/../CMakeCache.txt >> $ff
+#grep HOMME ${xxdir}/../CMakeCache.txt >> $ff
+echo " " >> $ff
+echo " job id is ${SLURM_JOB_ID}" >> $ff
+head -n 50 HommeTime_stats >> $ff
+
+rm HommeTime_stats
+
+
+
+#THETA NH
+#xx EUL run
+nname=xx-eul-nh
+nnl=${nname}.nl
+srun -N 9216 \
+     -n 589824 \
+     -c 4 \
+     --cpu_bind=cores \
+     $exexx \
+     < $nnl |& grep -v "KMP_AFFINITY:"
+     #|& grep -v "IEEE_UNDERFLOW_FLAG"
+
+ff=time-${nname}-ne1024-machcoriknl-nnode9216-nmax9216.${SLURM_JOB_ID}
+
+cp job.sh $ff
+echo " " >> $ff
+cat $nnl >> $ff
+echo " " >> $ff
+grep define ${xxdir}/../../kokkos/build/KokkosCore_config.h >> $ff
+grep COMMIT ${xxdir}/../../CMakeCache.txt >> $ff
+grep HOMME ${xxdir}/../../CMakeCache.txt >> $ff
+echo " " >> $ff
+echo " job id is ${SLURM_JOB_ID}" >> $ff
+head -n 50 HommeTime_stats >> $ff
+
+rm HommeTime_stats
+
+
+
+
+
+
+
+ 
+&ctl_nl
+NThreads=-1
+partmethod    = 4
+topology      = "cube"
+test_case     = "jw_baroclinic"
+u_perturb = 1
+rotate_grid = 0
+ne=1024
+qsize = 10
+nmax=9216
+statefreq=99999999
+disable_diagnostics = .true.
+restartfreq   = 999999999
+restartfile   = "./R0001"
+runtype       = 0
+mesh_file='/dev/null'
+tstep=10      ! ne30: 300  ne120: 75
+rsplit=2       ! ne30: 3   ne120:  2
+qsplit = 1
+tstep_type = 10
+integration   = "explicit"
+nu    =2.5e10 
+nu_div=2.5e10
+nu_p  =2.5e10
+nu_q  =2.5e10
+nu_s  =2.5e10
+nu_top = 0
+se_ftype     = 0
+limiter_option = 9
+vert_remap_q_alg = 1
+hypervis_scaling=0
+hypervis_order = 2
+hypervis_subcycle=1    ! ne30: 3  ne120: 4
+theta_hydrostatic_mode=.false.
+theta_advect_form=1
+hypervis_subcycle_tom  = 0
+/
+
+&vert_nl
+vform         = "ccm"
+vfile_mid = './sabm-128.ascii'
+vfile_int = './sabi-128.ascii'
+/
+
+&prof_inparm
+profile_outpe_num = 100
+profile_single_file		= .true.
+/
+
+&analysis_nl
+! disabled
+ output_timeunits=1,1
+ output_frequency=0,0
+ output_start_time=0,0
+ output_end_time=30000,30000
+ output_varnames1='ps','zeta','T','geo'
+ output_varnames2='Q','Q2','Q3','Q4','Q5'
+ io_stride=8
+ output_type = 'netcdf' 
+/
+
+ 
+ 
+ job id is 30900976
+
+***** GLOBAL STATISTICS (589824 MPI TASKS) *****
+
+$Id: gptl.c,v 1.157 2011-03-28 20:55:18 rosinski Exp $
+'count' is cumulative. All other stats are max/min
+'on' indicates whether the timer was active during output, and so stats are lower or upper bounds.
+
+name                           on  processes  threads        count      walltotal   wallmax (proc   thrd  )   wallmin (proc   thrd  )
+"Total"                         -     589824   589824 5.898240e+05   1.069296e+09  1813.711 ( 73807      0)  1811.870 (589609      0)
+"prim_init1"                    -     589824   589824 5.898240e+05   1.145003e+07    32.531 (     0      0)    19.404 (315156      0)
+"PartitioningTime"              -     589824   589824 5.898240e+05   6.513951e+00     0.000 (248775      0)     0.000 (  5392      0)
+"repro_sum_int"                 -     589824   589824 8.847360e+06   4.864543e+06    42.193 (451201      0)     0.114 (589042      0)
+"sl_init1"                      -     589824   589824 5.898240e+05   6.921861e+00     0.000 (307578      0)     0.000 (  1787      0)
+"prim_init2"                    -     589824  1179648 1.179648e+06   9.668066e+06    42.195 (425285      0)     0.205 (315705      0)
+"prim_printstate"               -     589824  1179648 1.179648e+06   1.299664e+05     0.117 (     0      0)     0.094 (130318      0)
+"prim_io_init"                  -     589824   589824 5.898240e+05   9.260483e-01     0.000 (410302      0)     0.000 (  3372      0)
+"prim_main_loop"                -     589824   589824 5.898240e+05   1.031877e+09  1750.272 ( 73807      0)  1748.427 (589609      0)
+"prim_run"                      -     589824  1179648 5.435818e+09   2.063722e+09  1750.248 ( 73807      1)  1748.401 (589609      1)
+"ApplyCAMForcing_remap"         -     589824  1179648 5.435818e+09   1.305960e+07    15.471 (222208      0)     9.122 (151107      1)
+"prim_advance_exp"              -     589824  1179648 1.087164e+10   1.274547e+09  1191.054 (445791      1)   973.033 (433637      0)
+"compute_andor_apply_rhs"       -     589824  1179648 5.435818e+10   5.440449e+08   645.609 (506363      0)   294.991 ( 94456      1)
+"caar_bexchV"                   -     589824  1179648 5.435818e+10   3.265819e+08   485.570 (506363      0)    72.131 ( 94592      0)
+"compute_stage_value_dirk"      -     589824  1179648 5.435818e+10   5.459028e+08   721.710 ( 94456      1)   360.673 (445791      0)
+"advance_hypervis"              -     589824  1179648 1.087164e+10   1.832676e+08   260.848 (565340      0)    91.052 ( 94616      1)
+"biwkdp3d_bexchV"               -     589824  1179648 1.087164e+10   6.462803e+07   152.559 (486878      0)    11.545 ( 94720      0)
+"ahdp_bexchV2"                  -     589824  1179648 1.087164e+10   5.938847e+07   136.394 (486876      1)    15.490 ( 94725      0)
+"prim_step_advec"               -     589824  1179648 1.087164e+10   5.993246e+08   629.709 (435806      0)   401.582 ( 90237      1)
+"PAT_remap"                     -     589824  1179648 1.087164e+10   5.992851e+08   629.674 (435806      0)   401.548 ( 90237      1)
+"prim_advec_tracers_remap_rk2"  -     589824  1179648 1.087164e+10   5.992262e+08   629.622 (435806      0)   401.491 ( 90237      1)
+"precomput_divdp"               -     589824  1179648 1.087164e+10   1.852928e+06     2.577 ( 86911      0)     1.350 (521773      0)
+"euler_step_0"                  -     589824  1179648 1.087164e+10   1.893957e+08   252.498 (452786      0)   109.266 ( 92209      1)
+"bihmix_qminmax"                -     589824  1179648 3.261491e+10   2.402888e+08   286.814 (485130      0)   156.349 ( 90235      0)
+"eus_neighbor_minmax1"          -     589824  1179648 1.087164e+10   6.302163e+07   140.041 (486870      0)    21.903 ( 92227      0)
+"nmm_bexchV"                    -     589824  1179648 1.087164e+10   5.819176e+07   135.722 (486870      0)    17.388 ( 94631      0)
+"eus_2d_advec"                  -     589824  1179648 3.261491e+10   3.523840e+08   398.561 (433637      1)   227.853 ( 89906      1)
+"eus_bexchV"                    -     589824  1179648 3.261491e+10   1.842075e+08   269.873 (435804      0)    51.734 ( 90240      0)
+"euler_step_1"                  -     589824  1179648 1.087164e+10   1.276515e+08   184.985 (508901      0)    78.661 (505458      1)
+"euler_step_2"                  -     589824  1179648 1.087164e+10   2.761319e+08   324.207 (435720      0)   182.774 (506268      1)
+"nmm_bexchS_start"              -     589824  1179648 1.087164e+10   2.569929e+06     7.622 ( 94720      1)     0.071 (573339      1)
+"biwksc_bexchV"                 -     589824  1179648 1.087164e+10   6.177827e+07   132.124 (511148      1)    19.903 ( 89536      0)
+"nmm_bexchS_fini"               -     589824  1179648 1.087164e+10   3.185038e+06    15.817 (353208      1)     0.258 ( 48836      0)
+"qdp_tavg"                      -     589824  1179648 1.087164e+10   3.878010e+06     4.991 (422878      0)     2.372 ( 80832      1)
+"vertical_remap"                -     589824  1179648 5.435818e+09   1.605820e+08   171.609 (206613      0)   118.991 ( 25677      1)
+"vertical_remap1_1"             -     589824  1179648 2.899103e+10   4.855949e+07    55.014 (206613      0)    36.767 (488703      0)
+"remap_Q_ppm"                   -     589824  1179648 5.798206e+10   1.459441e+08   158.594 (206613      0)   107.907 (537522      0)
+"vertical_remap1_3"             -     589824  1179648 2.899103e+10   9.793105e+07   105.010 (195840      0)    70.610 (535242      1)
+"t_prf"                         y          0        0 0.000000e+00   0.000000e+00     0.000 (     0      0)     0.000 (     0      0)
+

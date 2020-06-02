@@ -1,0 +1,24 @@
+
+
+Clone https://github.com/E3SM-Project/E3SM/tree/homme_theta_kokkos , commit 6814d5b612783cd90dc8589e5 .
+
+Folder ne1024 (for 3 km resolution) contains all setup to make and run HOMME at scale.
+
+After pointing to the clone's path, launch build*sh scripts to make builds. The scripts load modules needed from load-modules* files. The same module files will be used to run.
+
+After build(s) are done, one can tune generate-script.sh for number of nodes.
+
+Before running generate-script.sh make a folder that contains name for NE parameter.
+
+That is, if running for NE=1024 for 3 km resolution, make a folder 'run1024'.
+
+After that launch script generate-script.sh which will make subfolders in run* folder with a subfolder per node count.
+
+In subfolders there will be job scripts and input files for a run.
+
+Also, generate-script.sh will submit jobs to the queue.
+
+
+
+
+

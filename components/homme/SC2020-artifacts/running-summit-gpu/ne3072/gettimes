@@ -1,0 +1,59 @@
+#!/bin/bash
+
+#will report walltotal
+#for i in run/*/time-* ; do echo -n ${i}": " ; awk '/prim_main_loop/ && !seen {print $6 ; seen=1}' $i ; unset seen ; done
+#will report wallmax
+
+
+echo "\n"
+#echo "Total:"
+for i in run/*/time-*21* ; do echo -n ${i}": " ; awk '/U3-5stage_timestep/ && !seen {print $8 ; seen=1}' $i ; unset seen ; done
+#echo "vertical_remap"
+#for i in re*/time-*1152* ; do echo -n ${i}": " ; awk '/vertical_remap/ && !seen {print $8 ; seen=1}' $i ; unset seen ; done
+
+
+echo "prim_main_loop"
+for i in run${1}/*/time-* ; do
+  echo -n ${i}": " 
+  timer=$(awk '/prim_main_loop/ && !seen {print $7 ; seen=1}' $i)
+  echo $timer
+  nmax=$(grep -m 1 -o nmax[0-9]* <<< $i | head -1 | grep -o [0-9]*)
+
+#  timer=$(awk '/push_to_cxx/ && !seen {print $7 ; seen=1}' $i)
+#  echo "; pushtimer $timer"
+
+
+#formula for 2h time: timer/nmax * (7200/dt (dt=40 for ne256) ) = timer/nmax * 180
+#formula for 2h time: timer/nmax * (7200/dt (dt=10 for ne256) ) = timer/nmax * 720
+#formula for 30h time: timer/nmax * (1800/dt (dt=10 for ne256) ) = timer/nmax * 180
+#echo "2h time"
+#dc << EOF
+#9 k
+#$timer 720 * $nmax / p
+#EOF
+
+#echo "30min time"
+#dc << EOF
+#9 k
+#$timer 180 * $nmax / p
+#EOF
+
+#SYPD = nmax * dt(dt=75) / Timer (prim_main_loop) / 365           for ne120
+#SYPD = nmax * dt(dt=40) / Timer (prim_main_loop) / 365           for ne256
+#SYPD = nmax * dt(dt=10) / Timer (prim_main_loop) / 365           for ne1024
+#dt=3.125 for ne3072
+
+echo "SYPD"
+dc << EOF
+9 k
+$nmax 3.125 * $timer / 365 / p
+EOF
+
+  unset seen 
+  echo " "
+done
+
+
+#grep "tl-sc vertical\|prim_main\|_RK2\|U3\-5\|vis_dp" time-xx-ne120-*
+
+

@@ -1,0 +1,47 @@
+ status is ------------- 
+# On branch homme_theta_kokkos
+# Changes not staged for commit:
+#   (use "git add <file>..." to update what will be committed)
+#   (use "git checkout -- <file>..." to discard changes in working directory)
+#
+#	modified:   cmake/machineFiles/summit-gpumpi-movies.cmake
+#
+# Untracked files:
+#   (use "git add <file>..." to include in what will be committed)
+#
+#	../../cime/tools/cprnc/Depends.ibm.cmake
+#	../../cime/tools/cprnc/Depends.summit.cmake
+#	../../cime/tools/cprnc/Depends.summit.ibm
+#	gitstat
+#	src/share/cxx/Hommexx_Session_init_output.cpp
+#	../../timers-diff
+no changes added to commit (use "git add" and/or "git commit -a")
+ branch is ------------- 
+* homme_theta_kokkos
+  master
+  oksanaguba/homme/xx-dndebug-fix
+ diffs are ------------- 
+diff --git a/components/homme/cmake/machineFiles/summit-gpumpi-movies.cmake b/components/homme/cmake/machineFiles/summit-gpumpi-movies.cmake
+index 600ef8d..dfc9e2d 100644
+--- a/components/homme/cmake/machineFiles/summit-gpumpi-movies.cmake
++++ b/components/homme/cmake/machineFiles/summit-gpumpi-movies.cmake
+@@ -23,7 +23,7 @@ SET(ENABLE_CUDA FALSE CACHE BOOL "")
+ SET(BUILD_HOMME_PREQX_KOKKOS TRUE CACHE BOOL "")
+ SET(BUILD_HOMME_THETA_KOKKOS TRUE CACHE BOOL "")
+ SET(HOMME_ENABLE_COMPOSE FALSE CACHE BOOL "")
+-SET(HOMMEXX_GB_CONFIG ON CACHE BOOL "")
++#SET(HOMMEXX_GB_CONFIG ON CACHE BOOL "")
+ 
+ #SET (HOMMEXX_BFB_TESTING TRUE CACHE BOOL "")
+ SET (AVX_VERSION 0 CACHE STRING "")
+ last 10 commits are ------------- 
+6814d5b612783cd90dc8589e59b4e3877f525c57 fixing cmake
+65e253a18fb1f35aaac38dc4cf23ea7e6f7b9d06 Merge pull request #3466 from E3SM-Project/jgfouca/hommexx/upgrade_team_idx
+20cd251bd783697ad8051d1effefb1cba907bbb3 fixing linking with mpicxx
+3d2e2e1c80fabe0dcfa0fc8637ccbc4128fc4619 Hommexx: Update unit test.
+36f56acff3e3b9f6f3b87bcdb044d35605d2e627 Hommexx: Prefer larger team unless told otherwise.
+cddc348f8343c54bc5e9f173c852e79dba3632a7 Merge branch 'homme_theta_kokkos' of github.com:E3SM-Project/E3SM into homme_theta_kokkos
+483767bd93fa5bedb8621c5f256f906b2a7a5c75 patch linking
+c47006e715b6521244274cef11b722599c3d63a4 one more cmake
+d12e130333834e5416a511bca07129e8f1836d84 tweaks in cmake, disable F forcing for GB
+1774225b2f9b08aa91dbc6094f62da4c0ece7ab4 tweak openmp = off

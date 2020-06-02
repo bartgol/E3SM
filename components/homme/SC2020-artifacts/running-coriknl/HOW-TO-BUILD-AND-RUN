@@ -1,0 +1,39 @@
+Currently Loaded Modulefiles:
+  1) modules/3.2.11.4                                 14) xpmem/2.2.20-7.0.1.1_4.8__g0475745.ari
+  2) nsg/1.2.0                                        15) job/2.2.4-7.0.1.1_3.34__g36b56f4.ari
+  3) altd/2.0                                         16) dvs/2.12_2.2.156-7.0.1.1_8.6__g5aab709e
+  4) darshan/3.1.7                                    17) alps/6.6.57-7.0.1.1_5.10__g1b735148.ari
+  5) intel/19.0.3.199                                 18) rca/2.2.20-7.0.1.1_4.42__g8e3fb5b.ari
+  6) craype-network-aries                             19) atp/2.1.3
+  7) craype/2.6.2                                     20) PrgEnv-intel/6.0.5
+  8) cray-libsci/19.06.1                              21) cray-mpich/7.7.10
+  9) udreg/2.3.2-7.0.1.1_3.29__g8175d3d.ari           22) craype-hugepages2M
+ 10) ugni/6.0.14.0-7.0.1.1_7.32__ge78e5b0.ari         23) cmake/3.14.4
+ 11) pmi/5.0.14                                       24) cray-netcdf-hdf5parallel/4.6.3.2
+ 12) dmapp/7.1.1-7.0.1.1_4.43__g38cf134.ari           25) craype-mic-knl
+ 13) gni-headers/5.0.12.0-7.0.1.1_6.27__g3b1768f.ari
+
+
+
+Clone https://github.com/E3SM-Project/E3SM/tree/homme_theta_kokkos , commit 6814d5b612783cd90dc8589e5 .
+
+Folder ne1024 (for 3 km resolution) contains all setup to make and run HOMME at scale.
+
+After pointing to the clone's path, launch build*sh scripts to make builds. Use modules above.
+
+After build(s) are done, one can tune generate-script.sh for number of nodes.
+
+Before running generate-script.sh make a folder that contains name for NE parameter.
+
+That is, if running for NE=1024 for 3 km resolution, make a folder 'run1024'.
+
+After that launch script generate-script.sh which will make subfolders in run* folder with a subfolder per node count.
+
+In subfolders there will be job scripts and input files for a run.
+
+Also, generate-script.sh will submit jobs to the queue.
+
+
+
+
+

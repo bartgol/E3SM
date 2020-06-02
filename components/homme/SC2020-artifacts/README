@@ -1,0 +1,13 @@
+
+Environment is collected by collect.sh script for 2 machines, summit (gpu and p9 setup on an allocated node), and cori (allocated knl node) in *setup files.
+
+Subfolders run-* have instructions and all scripts/input needed to configure and submit run scripts, see HOW-TO* files.
+
+Sample outputs are presented in sample-output folderr for each machine.
+
+
+
+
+
+
+

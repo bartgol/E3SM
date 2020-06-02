@@ -1,0 +1,229 @@
+#!/bin/bash -f
+#SBATCH --account=e3sm
+#SBATCH -p regular # NOTE for debug que chaining (script to submit a script) is not allowed
+#SBATCH --error=slurm-ne1024-machcoriknl-nnode9216-nmax9216.%j # do not use custom output file?
+#SBATCH --output=slurm-ne1024-machcoriknl-nnode9216-nmax9216.%j
+#SBATCH --nodes=9216
+#SBATCH -C knl
+#SBATCH -t 00:120:00  # who knows how much....
+#SBATCH --job-name=1024k9216 # format to shrink job name
+
+
+wdir=`pwd`
+
+xxdir=${wdir}/../../bldxx/test_execs
+exexx=${xxdir}/theta-nlev128-kokkos/theta-nlev128-kokkos
+exeff=${xxdir}/theta-nlev128/theta-nlev128
+
+
+export OMP_NUM_THREADS=2
+export KMP_AFFINITY=balanced
+export OMP_STACKSIZE=16M
+
+
+#ff SL run
+nname=ff-sl-nh
+nnl=${nname}.nl
+srun -N 9216 \
+     -n 589824 \
+     -c 4 \
+     --cpu_bind=cores \
+     $exeff \
+     < $nnl |& grep -v "KMP_AFFINITY:"
+     #|& grep -v "IEEE_UNDERFLOW_FLAG"
+
+ff=time-${nname}-ne1024-machcoriknl-nnode9216-nmax9216.${SLURM_JOB_ID}
+
+cp job.sh $ff
+echo " " >> $ff
+cat $nnl >> $ff
+echo " " >> $ff
+#grep define ${xxdir}/../kokkos/build/KokkosCore_config.h >> $ff
+#grep COMMIT ${xxdir}/../CMakeCache.txt >> $ff
+#grep HOMME ${xxdir}/../CMakeCache.txt >> $ff
+echo " " >> $ff
+echo " job id is ${SLURM_JOB_ID}" >> $ff
+head -n 50 HommeTime_stats >> $ff
+
+rm HommeTime_stats
+
+
+
+#ff EUL run
+nname=ff-eul-nh
+nnl=${nname}.nl
+srun -N 9216 \
+     -n 589824 \
+     -c 4 \
+     --cpu_bind=cores \
+     $exeff \
+     < $nnl |& grep -v "KMP_AFFINITY:"
+     #|& grep -v "IEEE_UNDERFLOW_FLAG"
+
+ff=time-${nname}-ne1024-machcoriknl-nnode9216-nmax9216.${SLURM_JOB_ID}
+
+cp job.sh $ff
+echo " " >> $ff
+cat $nnl >> $ff
+echo " " >> $ff
+#grep define ${xxdir}/../kokkos/build/KokkosCore_config.h >> $ff
+#grep COMMIT ${xxdir}/../CMakeCache.txt >> $ff
+#grep HOMME ${xxdir}/../CMakeCache.txt >> $ff
+echo " " >> $ff
+echo " job id is ${SLURM_JOB_ID}" >> $ff
+head -n 50 HommeTime_stats >> $ff
+
+rm HommeTime_stats
+
+
+
+#THETA NH
+#xx EUL run
+nname=xx-eul-nh
+nnl=${nname}.nl
+srun -N 9216 \
+     -n 589824 \
+     -c 4 \
+     --cpu_bind=cores \
+     $exexx \
+     < $nnl |& grep -v "KMP_AFFINITY:"
+     #|& grep -v "IEEE_UNDERFLOW_FLAG"
+
+ff=time-${nname}-ne1024-machcoriknl-nnode9216-nmax9216.${SLURM_JOB_ID}
+
+cp job.sh $ff
+echo " " >> $ff
+cat $nnl >> $ff
+echo " " >> $ff
+grep define ${xxdir}/../../kokkos/build/KokkosCore_config.h >> $ff
+grep COMMIT ${xxdir}/../../CMakeCache.txt >> $ff
+grep HOMME ${xxdir}/../../CMakeCache.txt >> $ff
+echo " " >> $ff
+echo " job id is ${SLURM_JOB_ID}" >> $ff
+head -n 50 HommeTime_stats >> $ff
+
+rm HommeTime_stats
+
+
+
+
+
+
+
+ 
+&ctl_nl
+NThreads=-1
+partmethod    = 4
+topology      = "cube"
+test_case     = "jw_baroclinic"
+u_perturb = 1
+rotate_grid = 0
+ne=1024
+qsize = 10
+nmax=9216
+statefreq=99999999
+disable_diagnostics = .true.
+restartfreq   = 999999999
+restartfile   = "./R0001"
+runtype       = 0
+mesh_file='/dev/null'
+tstep=10      ! ne30: 300  ne120: 75
+tstep_type = 10
+integration   = "explicit"
+nu    =2.5e10 
+nu_div=2.5e10
+nu_p  =2.5e10
+nu_q  =2.5e10
+nu_s  =2.5e10
+nu_top = 0
+se_ftype     = 0
+limiter_option = 9
+vert_remap_q_alg = 10
+dt_tracer_factor  = 6
+dt_remap_factor   = 2
+transport_alg     = 12
+semi_lagrange_cdr_alg   = 21
+semi_lagrange_cdr_check = .false.
+semi_lagrange_nearest_point_lev = 100
+semi_lagrange_hv_q = 1
+hypervis_scaling=0
+hypervis_order = 2
+hypervis_subcycle_q=6    ! ne30: 3  ne120: 4
+hypervis_subcycle=1    ! ne30: 3  ne120: 4
+hypervis_subcycle_tom  = 0
+theta_hydrostatic_mode=.false.
+theta_advect_form=1
+/
+
+&vert_nl
+vform         = "ccm"
+vfile_mid = './sabm-128.ascii'
+vfile_int = './sabi-128.ascii'
+/
+
+&prof_inparm
+profile_outpe_num = 100
+profile_single_file		= .true.
+/
+
+&analysis_nl
+! disabled
+ output_timeunits=1,1
+ output_frequency=0,0
+ output_start_time=0,0
+ output_end_time=30000,30000
+ output_varnames1='ps','zeta','T','geo'
+ output_varnames2='Q','Q2','Q3','Q4','Q5'
+ io_stride=8
+ output_type = 'netcdf' 
+/
+
+ 
+ 
+ job id is 30900976
+
+***** GLOBAL STATISTICS (589824 MPI TASKS) *****
+
+$Id: gptl.c,v 1.157 2011-03-28 20:55:18 rosinski Exp $
+'count' is cumulative. All other stats are max/min
+'on' indicates whether the timer was active during output, and so stats are lower or upper bounds.
+
+name                           on  processes  threads        count      walltotal   wallmax (proc   thrd  )   wallmin (proc   thrd  )
+"Total"                         -     589824   589824 5.898240e+05   8.842460e+08  1499.183 ( 77085      0)  1499.162 (432549      0)
+"prim_init1"                    -     589824   589824 5.898240e+05   1.572595e+07    30.125 (250204      0)    26.450 (435173      0)
+"PartitioningTime"              -     589824   589824 5.898240e+05   6.502526e+00     0.000 ( 88555      0)     0.000 (  1536      0)
+"repro_sum_int"                 -     589824   589824 8.847360e+06   1.049359e+07    56.888 ( 13386      0)     0.090 (577538      0)
+"compose_init"                  -     589824   589824 5.898240e+05   4.037707e+06    10.412 (249886      0)     6.734 ( 94747      0)
+"sl_init1"                      -     589824   589824 5.898240e+05   6.951418e+04     3.682 (249898      0)     0.013 (529666      0)
+"prim_init2"                    -     589824  1179648 1.179648e+06   2.093920e+07    56.839 (430142      1)     0.161 (328109      1)
+"prim_printstate"               -     589824  1179648 1.179648e+06   7.020688e+04     0.069 (     0      0)     0.057 (305215      0)
+"prim_io_init"                  -     589824   589824 5.898240e+05   9.291096e-01     0.000 (573916      0)     0.000 (  1836      0)
+"prim_main_loop"                -     589824   589824 5.898240e+05   8.349304e+08  1415.573 ( 77085      0)  1415.538 (     0      0)
+"prim_run"                      -     589824  1179648 1.811939e+09   1.669850e+09  1415.565 ( 77085      1)  1415.526 (     0      0)
+"prim_step_dyn"                 -     589824  1179648 1.811939e+09   1.040765e+09  1126.158 ( 94585      0)   793.116 (574884      0)
+"prim_advance_exp"              -     589824  1179648 1.087164e+10   9.813716e+08  1072.667 ( 94585      0)   747.248 (574884      0)
+"compute_andor_apply_rhs"       -     589824  1179648 5.435818e+10   3.468673e+08   406.463 (225006      1)   212.344 (466084      1)
+"caar_bexchV"                   -     589824  1179648 5.435818e+10   1.124946e+08   232.569 (225006      1)    22.809 ( 51520      0)
+"compute_stage_value_dirk"      -     589824  1179648 5.435818e+10   5.288961e+08   688.358 ( 90303      0)   374.696 (394893      0)
+"advance_hypervis"              -     589824  1179648 1.087164e+10   1.042358e+08   150.044 (225653      1)    63.765 (574786      1)
+"biwkdp3d_bexchV"               -     589824  1179648 1.087164e+10   2.340815e+07    55.479 (225652      1)     4.805 ( 19612      0)
+"ahdp_bexchV2"                  -     589824  1179648 1.087164e+10   1.976818e+07    50.616 (225653      1)     5.257 ( 18075      0)
+"vertical_remap"                -     589824  1179648 5.435818e+09   5.511139e+07    58.827 (181420      0)    42.450 (114173      1)
+"vertical_remap1_1"             -     589824  1179648 2.899103e+10   4.727451e+07    51.288 (181420      0)    36.360 (245851      1)
+"remap_Q_ppm"                   -     589824  1179648 4.831838e+10   8.629704e+07    92.411 (181420      0)    65.692 (120096      1)
+"PAT_remap"                     -     589824  1179648 1.811939e+09   5.879804e+08   590.334 (465749      0)   253.413 ( 94585      0)
+"Prim_Advec_Tracers_remap_ALE"  -     589824  1179648 1.811939e+09   5.879693e+08   590.324 (465749      0)   253.404 ( 94585      0)
+"SLMM_reconstruct"              -     589824  1179648 1.811939e+09   9.582102e+06    10.205 (143635      0)     7.238 (226492      1)
+"ALE_RKdss_bexchV"              -     589824  1179648 1.811939e+09   5.865501e+06    14.752 (226103      1)     0.521 ( 12019      0)
+"SLMM_v2x"                      -     589824  1179648 1.811939e+09   7.385060e+06     9.098 (481600      0)     5.561 ( 47662      1)
+"SLMM_csl"                      -     589824  1179648 1.811939e+09   9.812035e+07   120.661 (481600      1)    63.789 (432537      0)
+"advance_hypervis_scalar"       -     589824  1179648 1.811939e+09   5.062298e+07   108.221 (226058      0)    19.904 (435980      0)
+"biwksc_bexchV"                 -     589824  1179648 1.087164e+10   2.104448e+07    56.842 (226620      1)     5.550 ( 33344      0)
+"ah_scalar_bexchV"              -     589824  1179648 1.087164e+10   2.058430e+07    56.046 (226713      1)     5.587 (351552      0)
+"CEDR"                          -     589824  1179648 1.811939e+09   3.924577e+08   451.490 (573684      1)    98.152 ( 94626      0)
+"CEDR_local"                    -     589824  1179648 1.811939e+09   1.349438e+07    24.704 (481600      1)     9.740 (498032      0)
+"SL_dss"                        -     589824  1179648 1.811939e+09   8.848620e+06    18.912 (481598      0)     3.717 (  9731      1)
+"SLMM_bexchV"                   -     589824  1179648 1.811939e+09   4.142773e+06    15.053 (481591      0)     0.747 (  9731      0)
+"SLMM vertical remap"           -     589824  1179648 1.811939e+09   3.264590e+07    34.318 (181420      0)    23.529 (467502      1)
+"t_prf"                         y          0        0 0.000000e+00   0.000000e+00     0.000 (     0      0)     0.000 (     0      0)
+
