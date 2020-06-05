@@ -1,0 +1,49 @@
+The ne16 folder contains the scripts used to build and run the mode on a single node,
+to harvest performance metrics on the gpu. The scripts are already configured to 
+provide a gpu workload similar to what we have when running ne1024 on the whole
+summit supercomputer.
+The instructions are similar to what described in ../running-summit-gpu/HOW-TO-BUILD-AND-RUN,
+and uses similar scripts. Since there are differences (related to kernel profiling),
+we provide instructions here in detail.
+
+BUILD KOKKOS-TOOLS 
+
+1) Clone https://github.com/kokkos/kokkos-tools.git, commit 7fcfda8f81bd2c07bd2e92326b8e5949a05e308a
+
+2) Enter the folder profiling/nvprof-connector inside the cloned repo, and run 'make'.
+   This should create a shared library called kp_nvprof_connector.so, which will be needed
+   for profiling on the GPU.
+
+BUILD THE MODEL
+
+3) Next, Clone https://github.com/E3SM-Project/E3SM/tree/homme_theta_kokkos , commit 6814d5b612783cd90dc8589e5 .
+
+4) After pointing to the clone's path, launch the buildxx-gpumpi-nocudashare.sh script to configure
+   and build the model. The script load modules needed from the load-modules-gpu file.
+   The same module files will be used to run.
+
+PREPARE RUN
+
+5) One can now run generate-scripts with the desired configuration. In our case, we use nearray=(16),
+   nodenum=1, nmax=3, since we're only interested in single-node gpu-performance data.
+
+6) Before running generate-script.sh make a folder named runX, where X is the value used for ne.
+
+7) After that, launch script generate-script.sh, which will make subfolders in run* folder,
+   with names encoding the space/time discretization specs as well as the simulation node count.
+   In this case, there should be only one subfolder, since we are running on a single-node.
+   It should be called neX-machsummit-nnode1-nmaxY.
+
+8) Copy the ManualRoofline.section file into runX/neX-machsummit-nnode1-nmaxY.
+   The subfolder example-run16 show what your directory tree should look like upon running
+   the generate-scripts.sh file and copying ManualRoofline.section.
+
+9) Enter the runX/neX-machsummit-nnode1-nmaxY. In the job.sh script, edit the KOKKOS_PROFILE_LIBRARY,
+   to point to the correct location of the library built at step 2.
+
+RUN AND POSTPROCESS
+
+10) Run job.sh to submit a batch job to run hommexx, and generate gpu performance data.
+
+11) Run the ncu.sh script to postprocess the performance data. This will create a file data.csv,
+    containing all the performance metrics, as listed in ManualRoofline.section.

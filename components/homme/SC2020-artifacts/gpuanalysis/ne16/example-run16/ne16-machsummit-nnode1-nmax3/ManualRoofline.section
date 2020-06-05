@@ -1,0 +1,68 @@
+Identifier: "ManualRoofline"
+DisplayName: "Manual Roofline"
+Description: "This section gathers metrics for generating a roofline manually."
+Header {
+Metrics {
+Name: "smsp__sass_thread_inst_executed_op_dadd_pred_on.sum"
+}
+Metrics {
+Name: "smsp__sass_thread_inst_executed_op_dmul_pred_on.sum"
+}
+Metrics {
+Name: "smsp__sass_thread_inst_executed_op_dfma_pred_on.sum"
+}
+Metrics {
+Name: "smsp__cycles_elapsed.sum"
+}
+Metrics {
+Name: "smsp__cycles_elapsed.sum.per_second"
+}
+Metrics {
+Name: "l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum"
+}
+Metrics {
+Name: "l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum"
+}
+Metrics {
+Name: "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum"
+}
+Metrics {
+Name: "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum"
+}
+Metrics {
+Name: "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum"
+}
+Metrics {
+Name: "l1tex__t_sectors_pipe_lsu_mem_global_op_st.sum"
+}
+Metrics {
+Name: "l1tex__t_set_accesses_pipe_lsu_mem_global_op_atom.sum"
+}
+Metrics {
+Name: "l1tex__t_set_accesses_pipe_lsu_mem_global_op_red.sum"
+}
+Metrics {
+Name: "l1tex__t_set_accesses_pipe_tex_mem_surface_op_atom.sum"
+}
+Metrics {
+Name: "l1tex__t_set_accesses_pipe_tex_mem_surface_op_red.sum"
+}
+Metrics {
+Name: "lts__t_sectors_op_read.sum"
+}
+Metrics {
+Name: "lts__t_sectors_op_write.sum"
+}
+Metrics {
+Name: "lts__t_sectors_op_atom.sum"
+}
+Metrics {
+Name: "lts__t_sectors_op_red.sum"
+}
+Metrics {
+Name: "dram__sectors_read.sum"
+}
+Metrics {
+Name: "dram__sectors_write.sum"
+}
+}

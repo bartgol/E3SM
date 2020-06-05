@@ -6,7 +6,7 @@ Subfolders run-* have instructions and all scripts/input needed to configure and
 Sample outputs are presented in sample-output folderr for each machine.
 
 
-
+The subfolder gpuanalisys contains scripts used to harvest gpu data for the single-kernel roofline analysis.
 
 
 
