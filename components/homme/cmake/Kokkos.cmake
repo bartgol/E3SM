@@ -1,40 +1,38 @@
-set (KOKKOS_INSTALLATION_NEEDED FALSE CACHE LOGICAL "")
+# Whether we need to build kokkos
+set (KOKKOS_BUILD_NEEDED FALSE CACHE INTERNAL "")
+
+if (NOT DEFINED E3SM_INTERNAL_KOKKOS_ALREADY_BUILT)
+  set (E3SM_INTERNAL_KOKKOS_ALREADY_BUILT FALSE CACHE INTERNAL "")
+endif ()
+
 if (NOT DEFINED E3SM_KOKKOS_PATH)
   # Build kokkos submodule if user did not specify KOKKOS_PATH.
-  set (KOKKOS_SRC ${CMAKE_SOURCE_DIR}/../../externals/kokkos)
-  set (KOKKOS_BUILD_DIR ${CMAKE_BINARY_DIR}/kokkos/build)
-  SET (KOKKOS_INCLUDE_DIR ${KOKKOS_SRC}/core/src ${KOKKOS_BUILD_DIR})
-  SET (KOKKOS_LIBRARY_DIR ${KOKKOS_BUILD_DIR})
-  message ("Using Kokkos built internally to E3SM, in ${KOKKOS_BUILD_DIR}")
+  set (KOKKOS_SRC_DIR ${HOMME_SOURCE_DIR}/../../externals/kokkos CACHE INTERNAL "")
+  set (KOKKOS_BIN_DIR ${CMAKE_BINARY_DIR}/kokkos/build CACHE INTERNAL "")
+
+  message ("Using E3SM-internal Kokkos, built in ${KOKKOS_BIN_DIR}")
+
   if (NOT E3SM_INTERNAL_KOKKOS_ALREADY_BUILT)
     # Nobody else already added kokkos subdirectory, so we will do it
-    set (KOKKOS_INSTALLATION_NEEDED TRUE)
+    set (KOKKOS_BUILD_NEEDED TRUE)
     set (E3SM_INTERNAL_KOKKOS_ALREADY_BUILT TRUE)
   endif()
 else ()
-  message ("The installation of kokkos in ${E3SM_KOKKOS_PATH} will be used.")
-  SET (KOKKOS_INCLUDE_DIR ${E3SM_KOKKOS_PATH}/include)
-  SET (KOKKOS_LIBRARY_DIR ${E3SM_KOKKOS_PATH}/lib)
+  find_package(Kokkos REQUIRED
+               PATHS ${E3SM_KOKKOS_PATH})
+
+  message (STATUS "Kokkos installation found in provided path '${E3SM_KOKKOS_PATH}'. Here are the details:")
+  message ("    Kokkos_INCLUDE_DIRS:  ${Kokkos_INCLUDE_DIRS}")
+  message ("    Kokkos_LIBRARY_DIRS:  ${Kokkos_LIBRARY_DIRS}")
+  message ("    Kokkos_LIBRARIES:     ${Kokkos_LIBRARIES}")
+  message ("    Kokkos_TPL_LIBRARIES: ${Kokkos_TPL_LIBRARIES}")
 endif ()
 
-SET (KOKKOS_LIBRARIES "kokkos")
-SET (KOKKOS_TPL_LIBRARIES "dl")
-
-MESSAGE (STATUS "Kokkos installation found! Here are the details:")
-MESSAGE ("    KOKKOS_INCLUDE_DIR: ${KOKKOS_INCLUDE_DIR}")
-MESSAGE ("    KOKKOS_LIBRARY_DIR: ${KOKKOS_LIBRARY_DIR}")
-MESSAGE ("    KOKKOS_LIBRARIES:   ${KOKKOS_LIBRARIES}")
-
-macro(install_kokkos_if_needed)
-  if (KOKKOS_INSTALLATION_NEEDED)
+macro (build_kokkos_if_needed)
+  if (KOKKOS_BUILD_NEEDED)
     if (ENABLE_OPENMP)
       set (KOKKOS_ENABLE_OPENMP TRUE)
     endif ()
-    add_subdirectory (${KOKKOS_SRC} ${KOKKOS_LIBRARY_DIR})
+    add_subdirectory (${KOKKOS_SRC_DIR} ${KOKKOS_BIN_DIR})
   endif ()
 endmacro()
-
-macro(link_to_kokkos targetName)
-  INCLUDE_DIRECTORIES("${KOKKOS_INCLUDE_DIR}")
-  TARGET_LINK_LIBRARIES(${targetName} ${KOKKOS_TPL_LIBRARIES} ${KOKKOS_LIBRARIES} -L${KOKKOS_LIBRARY_DIR})
-endmacro(link_to_kokkos)
