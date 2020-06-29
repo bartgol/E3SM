@@ -969,7 +969,7 @@ contains
 !$OMP MASTER
 #endif
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     ! CAM already does this, no need to do it twice
     do n=1,nvars
        do i=1,nsize_use

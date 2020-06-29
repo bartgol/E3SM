@@ -26,7 +26,7 @@ module prim_driver_base
   use reduction_mod,    only: reductionbuffer_ordered_1d_t, red_min, red_max, red_max_int, &
                               red_sum, red_sum_int, red_flops, initreductionbuffer, &
                               red_max_index, red_min_index
-#ifndef CAM
+#ifdef HOMME_STANDALONE
   use prim_restart_mod, only : initrestartfile
   use restart_io_mod ,  only : readrestart
   use test_mod,         only: set_test_initial_conditions, compute_test_forcing
@@ -37,8 +37,8 @@ module prim_driver_base
   private
   public :: prim_init1, prim_init2 , prim_run_subcycle, prim_finalize
   public :: prim_init1_geometry, prim_init1_elem_arrays, prim_init1_buffers, prim_init1_cleanup
-#ifndef CAM
-  public :: prim_init1_no_cam
+#ifdef HOMME_STANDALONE
+  public :: prim_init1_standalone
 #endif
 
   public :: smooth_topo_datasets, deriv1
@@ -92,9 +92,9 @@ contains
     !       as well as to inject code in between pieces that is needed to
     !       properly setup the C++ structures.
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     ! Initialize a few things that CAM would take care of (e.g., parsing namelist)
-    call prim_init1_no_cam (par)
+    call prim_init1_standalone (par)
 #endif
 
     ! ==================================
@@ -138,8 +138,8 @@ contains
   end subroutine prim_init1
 
 
-#ifndef CAM
-  subroutine prim_init1_no_cam(par)
+#ifdef HOMME_STANDALONE
+  subroutine prim_init1_standalone(par)
     use mesh_mod,       only : MeshUseMeshFile, MeshCubeElemCount
     use cube_mod,       only : cubeelemcount
     use parallel_mod,   only : parallel_t, abortmp
@@ -147,7 +147,9 @@ contains
     use quadrature_mod, only : test_gauss, test_gausslobatto
     use repro_sum_mod,  only : repro_sum_defaultopts, repro_sum_setopts
     use time_mod,       only : nmax, time_at
+#ifndef HOMME_WITHOUT_PIOLIBRARY
     use common_io_mod,  only : homme_pio_init
+#endif
     !
     ! Inputs
     !
@@ -170,7 +172,9 @@ contains
     else
        total_nelem = CubeElemCount()
     end if
+#ifndef HOMME_WITHOUT_PIOLIBRARY
     call homme_pio_init(par%rank,par%comm)
+#endif
 
     approx_elements_per_task = dble(total_nelem)/dble(par%nprocs)
     if  (approx_elements_per_task < 1.0D0) then
@@ -206,7 +210,7 @@ contains
        call test_gauss(np)
        call test_gausslobatto(np)
     end if
-  end subroutine prim_init1_no_cam
+  end subroutine prim_init1_standalone
 #endif
 
   subroutine prim_init1_geometry(elem, par, dom_mt)
@@ -544,7 +548,7 @@ contains
     use parallel_mod,   only : parallel_t
     use control_mod,    only : runtype, restartfreq, transport_alg
     use bndry_mod,      only : sort_neighbor_buffer_mapping
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     use restart_io_mod, only : RestFile,readrestart
 #endif
 
@@ -576,7 +580,7 @@ contains
     !  This routines initalizes a Restart file.  This involves:
     !      I)  Setting up the MPI datastructures
     ! ==========================================================
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     if(restartfreq > 0 .or. runtype>=1)  then
        call initRestartFile(elem(1)%state,par,RestFile)
     endif
@@ -845,7 +849,7 @@ contains
        call abortmp('Error: only cube topology supported for primaitve equations')
     endif
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
 
     ! =================================
     ! HOMME stand alone initialization
@@ -1050,7 +1054,7 @@ contains
     if (.not. independent_time_steps) then
        call TimeLevel_Qdp(tl, dt_tracer_factor, n0_qdp, np1_qdp)
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
        ! compute HOMME test case forcing
        ! by calling it here, it mimics eam forcings computations in standalone
        ! homme.
@@ -1283,7 +1287,7 @@ contains
 
     call TimeLevel_Qdp(tl, dt_tracer_factor, n0_qdp, np1_qdp)
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     ! Compute test forcing over tracer time step.
     call compute_test_forcing(elem,hybrid,hvcoord,tl%n0,n0_qdp,dt_q,nets,nete,tl)
 #endif
@@ -1457,7 +1461,7 @@ contains
     !do nothing
   elseif (ftype==2) then
     ! with CAM physics, tracers were adjusted in dp coupling layer
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     do ie = nets,nete
        call ApplyCAMForcing_tracers (elem(ie),hvcoord,n0,n0qdp,dt_remap,.false.)
     enddo
@@ -1465,7 +1469,7 @@ contains
     call ApplyCAMForcing_dynamics(elem,hvcoord,n0,dt_remap,nets,nete)
  elseif (ftype==4) then
     ! with CAM physics, tracers were adjusted in dp coupling layer
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     do ie = nets,nete
        call ApplyCAMForcing_tracers (elem(ie),hvcoord,n0,n0qdp,dt_remap,.false.)
     enddo

@@ -71,7 +71,7 @@ void prim_advance_exp (TimeLevel& tl, const Real dt, const bool compute_diagnost
     });
   }
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
   // if "prescribed wind" set dynamics explicitly and skip time-integration
   if (params.prescribed_wind) {
     Errors::runtime_abort("'prescribed wind' functionality not yet available in C++ build.\n",

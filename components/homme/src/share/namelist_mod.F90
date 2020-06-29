@@ -92,7 +92,7 @@ module namelist_mod
     se_fv_phys_remap_alg, &
     timestep_make_subcycle_parameters_consistent
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
   use control_mod, only:              &
     pertlim,                          &
     dcmip2_0_h0,                      &
@@ -117,7 +117,7 @@ module namelist_mod
        partitionfornodes, mpireal_t, mpilogical_t, mpiinteger_t, mpichar_t
   use cg_mod,         only: cg_no_debug
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
   use interpolate_mod, only : vector_uvars, vector_vvars, max_vecvars, interpolate_analysis, replace_vec_by_vordiv
   use common_io_mod, only : &
        output_prefix,       &
@@ -330,7 +330,7 @@ module namelist_mod
       interpolate_analysis, &
       tool
 #endif
-! ^ ifndef CAM
+! ^ ifdef HOMME_STANDALONE
 
 
     namelist /solver_nl/precon_method, &
@@ -356,7 +356,7 @@ module namelist_mod
     npart         = 1
     uselapi       = .TRUE.
     se_tstep=-1
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     ndays         = 0
     nmax          = 12
     nthreads = 1
@@ -441,7 +441,7 @@ module namelist_mod
        ! moviefreq and restartfreq are interpreted to be in units of days.
        ! Both must be converted to numbers of steps.
        ! ================================================
-#ifndef CAM
+#ifdef HOMME_STANDALONE
        if (tstep <= 0) then
           call abortmp('tstep must be > 0')
        end if
@@ -465,7 +465,7 @@ module namelist_mod
           endif
        endif
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
 
 #ifdef _PRIM
        write(iulog,*) "reading physics namelist..."
@@ -604,7 +604,7 @@ module namelist_mod
        close(unit=7)
 #endif
 #endif
-! ^ ifndef CAM
+! ^ ifdef HOMME_STANDALONE
        ierr = timestep_make_subcycle_parameters_consistent(par, rsplit, qsplit, &
             dt_remap_factor, dt_tracer_factor)
 
@@ -647,7 +647,7 @@ module namelist_mod
     call MPI_bcast(restartfreq,     1,MPIinteger_t,par%root,par%comm,ierr)
     call MPI_bcast(runtype,         1,MPIinteger_t,par%root,par%comm,ierr)
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     if(test_case == "dcmip2012_test4") then
        rearth = rearth/dcmip4_X
        omega = omega*dcmip4_X
@@ -750,7 +750,7 @@ module namelist_mod
     call MPI_bcast(vanalytic, 1,              MPIinteger_t, par%root, par%comm,ierr)
     call MPI_bcast(vtop     , 1,              MPIreal_t   , par%root, par%comm,ierr)
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
 #ifndef HOMME_WITHOUT_PIOLIBRARY
     call MPI_bcast(output_prefix,MAX_STRING_LEN,MPIChar_t  ,par%root,par%comm,ierr)
     call MPI_bcast(output_timeunits ,max_output_streams,MPIinteger_t,par%root,par%comm,ierr)
@@ -881,7 +881,7 @@ module namelist_mod
     end if
 #endif
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
 !standalone homme does not support ftype=1 (cause it is identical to ftype=0).
 !also, standalone ftype=0 is the same as standalone ftype=2.
     if ((ftype == 0).or.(ftype == 2).or.(ftype == 3).or.(ftype == 4).or.(ftype == -1)) then
@@ -898,7 +898,7 @@ module namelist_mod
 #ifdef CAM
     nmpi_per_node=1
 #endif
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     call MPI_bcast(interpolate_analysis, 7,MPIlogical_t,par%root,par%comm,ierr)
     call MPI_bcast(interp_nlat , 1,MPIinteger_t,par%root,par%comm,ierr)
     call MPI_bcast(interp_nlon , 1,MPIinteger_t,par%root,par%comm,ierr)
@@ -924,7 +924,7 @@ module namelist_mod
        endif
     endif
 #endif
-! ^ ifndef CAM
+! ^ ifdef HOMME_STANDALONE
 
     ! some default diffusion coefficiets
     if(nu_s<0)    nu_s  = nu
@@ -956,7 +956,7 @@ module namelist_mod
        write(iulog,*)"done reading namelist..."
 
        write(iulog,*)"readnl: topology      = ",TRIM( TOPOLOGY )
-#ifndef CAM
+#ifdef HOMME_STANDALONE
        write(iulog,*)"readnl: test_case     = ",TRIM(test_case)
        write(iulog,*)"readnl: omega         = ",omega
        write(iulog,*)"readnl: sub_case      = ",sub_case
@@ -1043,7 +1043,7 @@ module namelist_mod
           write(iulog,*) "initial_total_mass = ",initial_total_mass
        end if
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
 #ifndef HOMME_WITHOUT_PIOLIBRARY
        write(iulog,*)"  analysis: output_prefix = ",TRIM(output_prefix)
        write(iulog,*)"  analysis: io_stride = ",io_stride
@@ -1087,7 +1087,7 @@ module namelist_mod
        write(iulog,*)""
 #endif
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
        write(iulog,*)" analysis interpolation = ", interpolate_analysis
 
        if(any(interpolate_analysis)) then
@@ -1098,9 +1098,9 @@ module namelist_mod
           write(iulog,*)" analysis interpolation type = ",interp_type
        end if
 #endif
-! ^ ifndef CAM
+! ^ ifdef HOMME_STANDALONE
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
 #ifdef HOMME_SHA1
       write(iulog,*)"HOMME SHA = ", HOMME_SHA1
 #endif

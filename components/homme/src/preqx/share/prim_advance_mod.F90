@@ -59,7 +59,7 @@ contains
 
     end subroutine prim_advance_init1
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
   !_____________________________________________________________________
   subroutine set_prescribed_wind(elem,deriv,hybrid,hv,dt,tl,nets,nete,eta_ave_w)
 
@@ -227,7 +227,7 @@ contains
        method = tstep_type                ! other RK variants
     endif
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     ! if "prescribed wind" set dynamics explicitly and skip time-integration
     if (prescribed_wind ==1 ) then
        call set_prescribed_wind(elem,deriv,hybrid,hvcoord,dt,tl,nets,nete,eta_ave_w)

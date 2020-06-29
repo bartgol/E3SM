@@ -39,12 +39,12 @@ module interpolate_mod
   save
 
   logical   :: debug=.false.
-#ifndef CAM
+#ifdef HOMME_STANDALONE
   integer, parameter, public :: MAX_VECVARS=25
   character(len=10), public :: vector_uvars(MAX_VECVARS), vector_vvars(MAX_VECVARS)
   logical, public :: replace_vec_by_vordiv(MAX_VECVARS)
 #endif
-! ^ ifndef CAM
+! ^ ifdef HOMME_STANDALONE
 
   type, public :: interpolate_t
      real (kind=real_kind), dimension(:,:), pointer :: Imat  ! P_k(xj)*wj/gamma(k)
@@ -87,7 +87,7 @@ module interpolate_mod
   public :: get_interp_gweight
   public :: get_interp_lat
   public :: get_interp_lon
-#ifndef CAM
+#ifdef HOMME_STANDALONE
   public :: var_is_vector_uvar, var_is_vector_vvar
 #endif
   public :: find_ref_coordinates
@@ -117,7 +117,7 @@ module interpolate_mod
   ! gridtype = 2       Gauss grid (CAM Eulerian)
   ! gridtype = 3       equally spaced, no poles (FV staggered velocity)
   ! Seven possible history files, last one is inithist and should be native grid
-#ifndef CAM
+#ifdef HOMME_STANDALONE
 #ifdef PIO_INTERP
   logical, public :: interpolate_analysis(8) = (/.true.,.false.,.false.,.false.,.false.,.false.,.false.,.false./)
 #else
@@ -1604,7 +1604,7 @@ end subroutine interpolate_ce
 
 
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
   function var_is_vector_uvar(name)
     character(len=*), intent(in) :: name
     integer :: i, var_is_vector_uvar, null_index
@@ -1643,7 +1643,7 @@ end subroutine interpolate_ce
 
   end function var_is_vector_vvar
 #endif
-! ^ ifndef CAM
+! ^ ifdef HOMME_STANDALONE
 
 
 end module interpolate_mod

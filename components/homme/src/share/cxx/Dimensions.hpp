@@ -16,8 +16,12 @@ namespace Homme {
 // Until whenever CUDA supports constexpr properly
 #ifdef CUDA_BUILD
 
-  #ifdef CAM
-    #define QSIZE_D PCNST
+  #if !defined(HAVE_CONFIG_H)
+    #ifdef CAM
+      #define QSIZE_D PCNST
+    #else
+      #error "Without a config.h file or CPP macros from CAM, Homme cannot figure out QSIZE_D dimension."
+    #endif
   #endif
 
   #define VECTOR_SIZE         1
@@ -30,13 +34,18 @@ namespace Homme {
   #define NUM_LEV             NUM_PHYSICAL_LEV
   #define NUM_LEV_P           (NUM_LEV + 1)
   #define NUM_INTERFACE_LEV   NUM_LEV_P
+
 #else
 
-  #ifdef CAM
-    static constexpr const int QSIZE_D = PCNST;
+  #if !defined(HAVE_CONFIG_H)
+    #ifdef CAM
+      static constexpr const int QSIZE_D = PCNST;
+    #else
+      #error "Without a config.h file or CPP macros from CAM, Homme cannot figure out QSIZE_D dimension."
+    #endif
   #endif
 
-  #if   (HOMMEXX_AVX_VERSION == 0)
+  #if (HOMMEXX_AVX_VERSION == 0)
     // Vector<VectorTag<SIMD<T, SpT>, l> > can use this for good results
     // on, e.g., Power9, where AVX doesn't exist.
     static constexpr const int VECTOR_SIZE = HOMMEXX_VECTOR_SIZE;
@@ -45,9 +54,8 @@ namespace Homme {
   #elif (HOMMEXX_AVX_VERSION == 512)
     static constexpr const int VECTOR_SIZE = 8;
   #endif
-  static constexpr int VECTOR_END = VECTOR_SIZE-1;
-
   static_assert(VECTOR_SIZE>0, "Error: VECTOR_SIZE=0!");
+  static constexpr const int VECTOR_END = VECTOR_SIZE-1;
 
   static constexpr const int NUM_PHYSICAL_LEV = PLEV;
   static constexpr const int NUM_LEV =
@@ -59,6 +67,7 @@ namespace Homme {
 
   static constexpr const int NUM_TIME_LEVELS = 3;
   static constexpr const int Q_NUM_TIME_LEVELS = 2;
+
 #endif // CUDA_BUILD
 
 template<int PHYSICAL_LENGTH>
@@ -80,6 +89,6 @@ public:
   static constexpr int LastPackEnd = Helper<PHYSICAL_LENGTH>::LastPackEnd;
 };
 
-} // namespace TinMan
+} // namespace Homme
 
 #endif // HOMMEXX_DIMENSIONS_HPP

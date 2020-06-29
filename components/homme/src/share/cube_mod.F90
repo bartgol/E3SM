@@ -2105,7 +2105,7 @@ contains
 ! only whole domain's areas coinside.
 
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     use repro_sum_mod,      only: repro_sum
 #else
     use shr_reprosum_mod,   only: repro_sum => shr_reprosum_calc
@@ -2155,7 +2155,7 @@ contains
 ! numerical area = geometric area.  
 ! The 'epsilon bubble' approach modifies inner weights in each element so that
 ! geometic and numerical areas of each element match.
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     use repro_sum_mod,      only: repro_sum
 #else
     use shr_reprosum_mod,   only: repro_sum => shr_reprosum_calc

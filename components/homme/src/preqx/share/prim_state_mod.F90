@@ -48,7 +48,7 @@ contains
        time=0.0D0
        c0  =0.0D0
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
 #ifndef _BGL
        open(unit=10,file=massfname,form="formatted",status="replace")
 !       write(10,*)time,c0
@@ -374,7 +374,7 @@ contains
           close(10)
 
        else
-#ifndef CAM
+#ifdef HOMME_STANDALONE
 #ifndef _BGL
           open(unit=10,file=massfname,form="formatted",position="append")
           write(10,*)time/secpday,(Mass2-hvcoord%ps0)/hvcoord%ps0

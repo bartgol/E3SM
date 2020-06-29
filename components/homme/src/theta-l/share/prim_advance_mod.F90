@@ -39,7 +39,7 @@ module prim_advance_mod
   use reduction_mod,      only: parallelmax, reductionbuffer_ordered_1d_t
   use time_mod,           only: timelevel_qdp, timelevel_t
   use prim_state_mod,     only: prim_diag_scalars, prim_energy_halftimes
-#ifndef CAM
+#ifdef HOMME_STANDALONE
   use test_mod,           only: set_prescribed_wind
 #endif
   use viscosity_theta,    only: biharmonic_wk_theta
@@ -141,7 +141,7 @@ contains
             elem(ie)%state%v(:,:,2,nlev,n0)*elem(ie)%derived%gradphis(:,:,2))/g
     enddo
  
-#ifndef CAM
+#ifdef HOMME_STANDALONE
     ! if "prescribed wind" set dynamics explicitly and skip time-integration
     if (prescribed_wind ==1 ) then
        call set_prescribed_wind(elem,deriv,hybrid,hvcoord,dt,tl,nets,nete,eta_ave_w)
@@ -528,7 +528,7 @@ contains
 
      elem(ie)%state%v(:,:,:,:,np1) = elem(ie)%state%v(:,:,:,:,np1) + dt*elem(ie)%derived%FM(:,:,1:2,:)
 
-#ifndef CAM
+#ifdef HOMME_STANDALONE
      elem(ie)%state%w_i(:,:,1:nlev,np1) = elem(ie)%state%w_i(:,:,1:nlev,np1) + dt*elem(ie)%derived%FM(:,:,3,:)
 #endif
 

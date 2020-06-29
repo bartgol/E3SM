@@ -212,7 +212,7 @@ module control_mod
 
   real (kind=real_kind), public :: initial_total_mass = 0    ! initial perturbation in JW test case
   real (kind=real_kind), public :: u_perturb   = 0         ! initial perturbation in JW test case
-#ifndef CAM
+#ifdef HOMME_STANDALONE
   real (kind=real_kind), public :: pertlim = 0          !pertibation to temperature [like CESM]
 #endif
 

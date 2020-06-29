@@ -33,8 +33,8 @@ module prim_cxx_driver_base
     use prim_driver_base, only : prim_init1_geometry, prim_init1_elem_arrays, &
                                  prim_init1_cleanup, prim_init1_buffers,      &
                                  MetaVertex, GridEdge, deriv1
-#ifndef CAM
-    use prim_driver_base, only : prim_init1_no_cam
+#ifdef HOMME_STANDALONE
+    use prim_driver_base, only : prim_init1_standalone
 #endif
 
     interface
@@ -63,8 +63,8 @@ module prim_cxx_driver_base
     ! Initialize kokkos before any environment changes from the Fortran
     call initialize_hommexx_session()
 
-#ifndef CAM
-    call prim_init1_no_cam(par)
+#ifdef HOMME_STANDALONE
+    call prim_init1_standalone(par)
 #endif
 
     ! ==================================
