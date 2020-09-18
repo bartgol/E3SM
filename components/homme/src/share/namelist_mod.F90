@@ -303,6 +303,9 @@ module namelist_mod
       vfile_int,          &
       vanalytic,          & ! use analytically generated vertical levels
       vtop                  ! top coordinate level. used when vanaltic=1
+#endif
+! ^ ifndef CAM
+#ifdef HOMME_STANDALONE
     namelist /analysis_nl/    &
       output_prefix,       &
       output_timeunits,    &
