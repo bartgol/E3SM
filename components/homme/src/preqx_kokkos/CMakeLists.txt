@@ -131,16 +131,7 @@ MACRO(PREQX_KOKKOS_SETUP)
     ${SRC_SHARE_F90}
     ${TEST_SRC_F90}
     ${SRC_DIR}/checksum_mod.F90
-    ${SRC_DIR}/common_io_mod.F90
-    ${SRC_DIR}/common_movie_mod.F90
-    ${SRC_DIR}/interpolate_driver_mod.F90
-    ${SRC_DIR}/interp_movie_mod.F90
-    ${SRC_DIR}/netcdf_io_mod.F90
-    ${SRC_DIR}/pio_io_mod.F90
-    ${SRC_DIR}/prim_movie_mod.F90
-    ${SRC_DIR}/prim_restart_mod.F90
     ${SRC_DIR}/repro_sum_mod.F90
-    ${SRC_DIR}/restart_io_mod.F90
     ${SRC_DIR}/surfaces_mod.F90
     ${SRC_DIR}/test_mod.F90
     ${UTILS_SHARE_DIR}/shr_const_mod.F90
@@ -151,6 +142,21 @@ MACRO(PREQX_KOKKOS_SETUP)
     ${UTILS_SHARE_DIR}/shr_sys_mod.F90
     ${UTILS_SHARE_DIR}/shr_vmath_mod.F90
   )
+
+  if (NOT BUILD_HOMME_WITHOUT_PIOLIBRARY)
+    SET(PREQX_DEPS_F90
+      ${PREQX_DEPS_F90}
+      ${SRC_DIR}/common_io_mod.F90
+      ${SRC_DIR}/common_movie_mod.F90
+      ${SRC_DIR}/interpolate_driver_mod.F90
+      ${SRC_DIR}/interp_movie_mod.F90
+      ${SRC_DIR}/netcdf_io_mod.F90
+      ${SRC_DIR}/pio_io_mod.F90
+      ${SRC_DIR}/prim_movie_mod.F90
+      ${SRC_DIR}/prim_restart_mod.F90
+      ${SRC_DIR}/restart_io_mod.F90
+    )
+  ENDIF()
 
   SET(PREQX_DEPS_CXX
     ${TARGET_DIR}/cxx/cxx_f90_interface_preqx.cpp
