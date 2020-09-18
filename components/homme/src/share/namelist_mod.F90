@@ -92,7 +92,7 @@ module namelist_mod
     se_fv_phys_remap_alg, &
     timestep_make_subcycle_parameters_consistent
 
-#ifndef HOMME_STANDALONE
+#ifndef CAM
   use control_mod, only:              &
     pertlim,                          &
     dcmip2_0_h0,                      &
