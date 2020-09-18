@@ -91,10 +91,12 @@ module namelist_mod
     vert_remap_q_alg, &
     se_fv_phys_remap_alg, &
     timestep_make_subcycle_parameters_consistent
+#ifndef CAM
+  use control_mod, only: pertlim
+#endif
 
 #ifdef HOMME_STANDALONE
   use control_mod, only:              &
-    pertlim,                          &
     dcmip2_0_h0,                      &
     dcmip2_0_rm,                      &
     dcmip2_0_zetam,                   &
@@ -275,7 +277,7 @@ module namelist_mod
 #ifdef CAM
     namelist  /ctl_nl/ SE_NSPLIT,  &                ! number of dynamics steps per physics timestep
       se_tstep
-#else
+#elif defined(HOMME_STANDALONE)
     namelist /ctl_nl/test_case,       &             ! test case idenitfier
       sub_case,        &             ! generic test case parameter
       nmax,            &             ! number of steps
