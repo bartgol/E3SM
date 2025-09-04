@@ -28,9 +28,11 @@ jobs:
       with:
         files: 'components/eamxx/**/*.{cpp,hpp}'
         separator: " "
-    - name: create conda env
+    - name: init conda
       run: |
         conda init
+    - name: create conda env
+      run: |
         conda create -n clang-format
         conda activate clang-format
         conda install clang-format
