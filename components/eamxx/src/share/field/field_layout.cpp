@@ -12,6 +12,7 @@ FieldLayout ()
   // Nothing to do here
 }
 
+// Some comment
 FieldLayout::FieldLayout (const std::vector<FieldTag>& tags,
                           const std::vector<int>& dims)
  : FieldLayout (tags,dims,tags2str(tags))
