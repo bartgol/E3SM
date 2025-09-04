@@ -28,11 +28,10 @@ jobs:
       with:
         files: 'components/eamxx/**/*.{cpp,hpp}'
         separator: " "
-    - name: init conda
-      run: |
-        conda init
     - name: create conda env
       run: |
+        conda init
+        source ~/.bashrc
         conda create -n clang-format
         conda activate clang-format
         conda install clang-format
@@ -43,6 +42,7 @@ jobs:
       # like "synchronization," which falls under the umbrella of PR triggers
       if: ${{ github.event.pull_request }}
       run: |
+        source ~/.bashrc
         conda activate clang-format
         flist="${{ steps.changed-files.outputs.all_changed_files }}"
         run_cfmt () {
