@@ -18,6 +18,9 @@ concurrency:
 
 jobs:
   clang-format-linter:
+    defaults:
+      run:
+        shell: bash -l {0}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
@@ -28,13 +31,14 @@ jobs:
       with:
         files: 'components/eamxx/**/*.{cpp,hpp}'
         separator: " "
+    - uses: conda-incubator/setup-miniconda@v3
+      with:
+          auto-update-conda: true
     - name: create conda env
       run: |
-        conda init
-        source ~/.bashrc
-        conda create -n clang-format
+        conda create -n clang-format -y
         conda activate clang-format
-        conda install clang-format
+        conda install -y clang-format
     - name: run formatter looping over PR-changed files, then diff -  PR trigger
       # Note: this (json) variable contains a handful of sub-fields, but its
       # existence encapsulates all of the PR-related triggers
@@ -42,7 +46,6 @@ jobs:
       # like "synchronization," which falls under the umbrella of PR triggers
       if: ${{ github.event.pull_request }}
       run: |
-        source ~/.bashrc
         conda activate clang-format
         flist="${{ steps.changed-files.outputs.all_changed_files }}"
         run_cfmt () {
