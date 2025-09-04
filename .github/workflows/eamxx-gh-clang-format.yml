@@ -30,6 +30,7 @@ jobs:
         separator: " "
     - name: create conda env
       run: |
+        conda init
         conda create -n clang-format
         conda activate clang-format
         conda install clang-format
