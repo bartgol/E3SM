@@ -61,6 +61,7 @@ jobs:
         run_cfmt () {
           clang-format -i --style=file:"components/eamxx/.clang-format" $1
         }
+        clang-format --version
         for f in ${flist[@]}; do
           echo "--Running clang-format on ${f}--"
           run_cfmt "${f}"
@@ -77,6 +78,7 @@ jobs:
         run_cfmt () {
           clang-format -i --style=file:"components/eamxx/.clang-format" $1
         }
+        clang-format --version
         for f in ${flist[@]}; do
           echo "--Running clang-format on ${f}--"
           run_cfmt "${f}"
