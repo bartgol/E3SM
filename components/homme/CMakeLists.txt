@@ -394,6 +394,10 @@ if (HOMME_BUILD_SCORPIO)
   message("** Configuring SCORPIO")
   # pio needs cime/externals/genf90/genf90.pl
   if (HOMME_USE_SCORPIO)
+    # Provide scorpio with gptl we just built
+    set (GPTL_C_PATH ${CMAKE_BINARY_DIR}/externals/gptl)
+    set (GPTL_Fortran_Perf_PATH ${CMAKE_BINARY_DIR}/externals/gptl)
+    
     # Need to use scorpio's older genf90 for now
     SET(GENF90_PATH ${CMAKE_CURRENT_SOURCE_DIR}/utils/utils/externals/scorpio/src/genf90)
     SET(PIO_ENABLE_TOOLS OFF CACHE BOOL "Disabling Scorpio tool build")
@@ -411,39 +415,28 @@ endif ()
 
 # EAMxx standalone as well as CIME builds already define the gptl target
 if (NOT TARGET gptl)
-  if (HOMME_BUILD_SCORPIO AND HOMME_USE_SCORPIO)
-    # If we build scorpio, we already get gptl
-    # But scorpio's gptl has private include dirs, so fix that
-    target_include_directories (gptl PUBLIC
-      ${CMAKE_CURRENT_SOURCE_DIR}/../../externals/scorpio/src/gptl
-      ${CMAKE_CURRENT_BINARY_DIR}/utils/externals/scorpio)
-  else ()
-    # We don't build scorpio (or we build scorpio_classic).
-    # Either way, gptl is not built for us, so let's build it from share/timing
-
-    ###########################################
-    # Definitions for timing library
-    ###########################################
-    # This is required in timing to set HAVE_MPI
-    ADD_DEFINITIONS(-DSPMD)
-    OPTION(ENABLE_NANOTIMERS "Use nano timers in timing library" FALSE)
-    OPTION(USE_BIT64 "Set BIT64 (for 64 bit arch) in timing library when ENABLE_NANOTIME" FALSE)
-    IF (${ENABLE_NANOTIMERS})
-      ADD_DEFINITIONS(-DHAVE_NANOTIME)
-      IF (${USE_BIT64})
-        ADD_DEFINITIONS(-DBIT64)
-      ENDIF ()
+  ###########################################
+  # Definitions for timing library
+  ###########################################
+  # This is required in timing to set HAVE_MPI
+  ADD_DEFINITIONS(-DSPMD)
+  OPTION(ENABLE_NANOTIMERS "Use nano timers in timing library" FALSE)
+  OPTION(USE_BIT64 "Set BIT64 (for 64 bit arch) in timing library when ENABLE_NANOTIME" FALSE)
+  IF (${ENABLE_NANOTIMERS})
+    ADD_DEFINITIONS(-DHAVE_NANOTIME)
+    IF (${USE_BIT64})
+      ADD_DEFINITIONS(-DBIT64)
     ENDIF ()
+  ENDIF ()
 
-    # Set a couple of vars that share/timing/CMakeLists.txt uses,
-    # and copy the empty Macros.cmake file where it can find it
-    set (INSTALL_SHAREDPATH ${CMAKE_BINARY_DIR}/externals/gptl)
-    set (CASEROOT ${INSTALL_SHAREDPATH})
-    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Macros.cmake"
-      DESTINATION ${CASEROOT})
-    ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/../../share/timing
-                     ${CMAKE_BINARY_DIR}/externals/gptl)
- endif()
+  # Set a couple of vars that share/timing/CMakeLists.txt uses,
+  # and copy the empty Macros.cmake file where it can find it
+  set (INSTALL_SHAREDPATH ${CMAKE_BINARY_DIR}/externals/gptl)
+  set (CASEROOT ${INSTALL_SHAREDPATH})
+  file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Macros.cmake"
+    DESTINATION ${CASEROOT})
+  ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/../../share/timing
+                   ${CMAKE_BINARY_DIR}/externals/gptl)
 endif()
 
 
