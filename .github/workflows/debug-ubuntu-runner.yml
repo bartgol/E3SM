@@ -9,7 +9,21 @@ jobs:
   debug:
     runs-on: ubuntu-latest
     steps:
-      - name: search netcdf
+      - name: install dependencies
         run: |
-          apt search netcdf
-
+          sudo apt-get install -y \
+            libblas-dev           \
+            liblapack-dev         \
+            libopenmpi-dev        \
+            openmpi-bin           \
+            libhdf5-openmpi-dev   \
+            libnetcdf-mpi-dev     \
+            libnetcdf-pnetcdf-dev \
+            libnetcdff-dev        \
+            libpnetcdf-dev
+      - name: use nc-config
+        run: nc-config --all
+      - name: use nf-config
+        run: nf-config --all
+      - name: use pnetcdf-config
+        run: pnetcdf-config --all
