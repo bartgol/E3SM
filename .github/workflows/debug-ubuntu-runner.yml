@@ -25,5 +25,7 @@ jobs:
         run: nc-config --all
       - name: use nf-config
         run: nf-config --all
+      - name: list pnetcdf content
+        run: dpkg -L libpnetcdf-dev
       - name: use pnetcdf-config
         run: pnetcdf-config --all
