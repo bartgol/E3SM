@@ -1,0 +1,15 @@
+name: debug ubuntu runner
+
+on:
+  # Runs every time a PR is open against master
+  pull_request:
+    branches: ["master"]
+
+jobs:
+  debug
+    runs-on: ubuntu-latest
+    steps:
+      - name: search netcdf
+        run: |
+          apt search netcdf
+
